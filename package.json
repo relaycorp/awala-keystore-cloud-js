@@ -1,5 +1,5 @@
 {
-  "name": "@relaycorp/awala-keystore-gcp",
+  "name": "@relaycorp/awala-keystore-cloud",
   "version": "1.0.0",
   "author": {
     "email": "no-reply@relaycorp.tech",
