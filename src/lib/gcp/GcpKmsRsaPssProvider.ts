@@ -6,7 +6,7 @@ import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 
 // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms
-const SUPPORTED_SALT_LENGTHS: ReadonlyArray<any> = [
+const SUPPORTED_SALT_LENGTHS: readonly number[] = [
   256 / 8, // SHA-256
   512 / 8, // SHA-512
 ];
