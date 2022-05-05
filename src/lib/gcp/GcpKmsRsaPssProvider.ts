@@ -36,7 +36,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     }
 
     const [exportResponse] = await this.kmsClient.getPublicKey(
-      { name: key.kmsKeyPath },
+      { name: key.kmsKeyVersionPath },
       { timeout: 500 },
     );
     const publicKeyDer = pemToDer(exportResponse.pem!);
@@ -59,7 +59,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     const [response] = await this.kmsClient.asymmetricSign(
       {
         data: new Uint8Array(data),
-        name: key.kmsKeyPath,
+        name: key.kmsKeyVersionPath,
       },
       { timeout: 500 },
     );

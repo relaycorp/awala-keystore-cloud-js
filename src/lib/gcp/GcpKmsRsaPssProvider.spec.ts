@@ -73,7 +73,7 @@ describe('onSign', () => {
     await provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT);
 
     expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
-      expect.objectContaining({ name: PRIVATE_KEY.kmsKeyPath }),
+      expect.objectContaining({ name: PRIVATE_KEY.kmsKeyVersionPath }),
       expect.anything(),
     );
   });
@@ -171,7 +171,7 @@ describe('onExportKey', () => {
     expect(publicKey).toBeInstanceOf(ArrayBuffer);
     expect(Buffer.from(publicKey as ArrayBuffer)).toEqual(publicKeyDer);
     expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
-      expect.objectContaining({ name: PRIVATE_KEY.kmsKeyPath }),
+      expect.objectContaining({ name: PRIVATE_KEY.kmsKeyVersionPath }),
       expect.anything(),
     );
   });

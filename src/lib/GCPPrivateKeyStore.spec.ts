@@ -1,12 +1,17 @@
 import { Datastore, Query } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
-import { generateRSAKeyPair, getPrivateAddressFromIdentityKey } from '@relaycorp/relaynet-core';
+import {
+  derSerializePublicKey,
+  generateRSAKeyPair,
+  getPrivateAddressFromIdentityKey,
+} from '@relaycorp/relaynet-core';
 
 import { DatastoreIdentityKeyEntity } from './gcp/DatastoreIdentityKeyEntity';
 import { GcpKmsError } from './gcp/GcpKmsError';
 import { GcpKmsRsaPssProvider } from './gcp/GcpKmsRsaPssProvider';
 import { GcpOptions } from './gcp/GcpOptions';
 import { GCPKeyOptions, GCPPrivateKeyStore } from './GCPPrivateKeyStore';
+import { bufferToArrayBuffer } from './utils/buffer';
 
 const ID_KEY_OPTIONS: GCPKeyOptions = { kmsKey: 'the-id-key', kmsKeyRing: 'the-ring' };
 const SESSION_KEY_OPTIONS: GCPKeyOptions = { ...ID_KEY_OPTIONS, kmsKey: 'the-session-key' };
@@ -14,10 +19,12 @@ const GCP_OPTIONS: GcpOptions = { location: 'westeros-east1', projectId: 'the-pr
 
 describe('generateIdentityKeyPair', () => {
   let stubPublicKey: CryptoKey;
+  let stubPublicKeySerialized: ArrayBuffer;
   let stubPrivateAddress: string;
   beforeAll(async () => {
     const keyPair = await generateRSAKeyPair();
     stubPublicKey = keyPair.publicKey;
+    stubPublicKeySerialized = bufferToArrayBuffer(await derSerializePublicKey(stubPublicKey));
     stubPrivateAddress = await getPrivateAddressFromIdentityKey(stubPublicKey);
   });
 
@@ -63,7 +70,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `RSA key ${cryptoKeyPath} does not use modulus 2048`,
+        `Key ${cryptoKeyPath} does not use modulus 2048`,
       );
     });
 
@@ -81,7 +88,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair({ modulus })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `RSA key ${cryptoKeyPath} does not use modulus ${modulus}`,
+        `Key ${cryptoKeyPath} does not use modulus ${modulus}`,
       );
     });
 
@@ -98,7 +105,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `RSA key ${cryptoKeyPath} does not use SHA-256`,
+        `Key ${cryptoKeyPath} does not use SHA-256`,
       );
     });
 
@@ -116,7 +123,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair({ hashingAlgorithm })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `RSA key ${cryptoKeyPath} does not use ${hashingAlgorithm}`,
+        `Key ${cryptoKeyPath} does not use ${hashingAlgorithm}`,
       );
     });
   });
@@ -149,7 +156,7 @@ describe('generateIdentityKeyPair', () => {
       const kmsClient = makeKmsClient();
       const store = new GCPPrivateKeyStore(
         kmsClient,
-        makeDatastoreClient(undefined),
+        makeDatastoreClient(null),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
         GCP_OPTIONS,
@@ -162,7 +169,7 @@ describe('generateIdentityKeyPair', () => {
     });
 
     test('Key name should be indexed in Datastore', async () => {
-      const datastoreClient = makeDatastoreClient();
+      const datastoreClient = makeDatastoreClient(null);
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
@@ -243,7 +250,7 @@ describe('generateIdentityKeyPair', () => {
       );
     });
 
-    test('Document id should be private address derived from key', async () => {
+    test('Document name should be private address derived from key', async () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
@@ -254,11 +261,11 @@ describe('generateIdentityKeyPair', () => {
         makeRsaPssProvider(),
       );
 
-      const { privateAddress } = await store.generateIdentityKeyPair();
+      await store.generateIdentityKeyPair();
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          key: expect.objectContaining({ id: privateAddress }),
+          key: expect.objectContaining({ name: stubPrivateAddress }),
         }),
       );
     });
@@ -281,13 +288,12 @@ describe('generateIdentityKeyPair', () => {
           data: expect.objectContaining<Partial<DatastoreIdentityKeyEntity>>({
             key: ID_KEY_OPTIONS.kmsKey,
           }),
-          excludeFromIndexes: expect.not.arrayContaining<keyof DatastoreIdentityKeyEntity>(['key']),
         }),
       );
     });
 
     test('KMS key version id should be stored but not indexed', async () => {
-      const datastoreClient = makeDatastoreClient();
+      const datastoreClient = makeDatastoreClient(undefined);
       const kmsKeyVersion = '42';
       const store = new GCPPrivateKeyStore(
         makeKmsClient({ versionId: kmsKeyVersion }),
@@ -326,7 +332,9 @@ describe('generateIdentityKeyPair', () => {
       const { privateKey, publicKey } = await store.generateIdentityKeyPair();
 
       expect(mockRsaPssProvider.onExportKey).toHaveBeenCalledWith('spki', privateKey);
-      expect(publicKey).toBe(stubPublicKey);
+      await expect(derSerializePublicKey(publicKey)).resolves.toEqual(
+        Buffer.from(stubPublicKeySerialized),
+      );
     });
 
     test('Private address should match public key', async () => {
@@ -352,9 +360,10 @@ describe('generateIdentityKeyPair', () => {
   } = {}): KeyManagementServiceClient {
     const kmsClient = new KeyManagementServiceClient();
 
-    jest
-      .spyOn(kmsClient, 'getCryptoKey')
-      .mockImplementation(() => [{ versionTemplate: { algorithm: cryptoKeyAlgorithm } }]);
+    jest.spyOn(kmsClient, 'getCryptoKey').mockImplementation(async (request) => {
+      expect(request.name).toEqual(cryptoKeyPath);
+      return [{ versionTemplate: { algorithm: cryptoKeyAlgorithm } }];
+    });
 
     const versionName = kmsClient.cryptoKeyVersionPath(
       GCP_OPTIONS.projectId,
@@ -371,19 +380,21 @@ describe('generateIdentityKeyPair', () => {
   }
 
   function makeDatastoreClient(
-    existingIdKey: DatastoreIdentityKeyEntity | undefined = {
+    existingIdKey: DatastoreIdentityKeyEntity | null = {
       key: ID_KEY_OPTIONS.kmsKey,
       version: '1',
     },
   ): Datastore {
     const datastore = new Datastore();
-    jest.spyOn(datastore, 'runQuery').mockImplementation(() => [existingIdKey]);
+    jest
+      .spyOn(datastore, 'runQuery')
+      .mockResolvedValue([existingIdKey ? [existingIdKey] : []] as never);
     jest.spyOn(datastore, 'save').mockImplementation(() => undefined);
     return datastore;
   }
 
   function makeRsaPssProvider(): GcpKmsRsaPssProvider {
-    const provider = { onExportKey: jest.fn().mockResolvedValue(stubPublicKey) };
+    const provider = { onExportKey: jest.fn().mockResolvedValue(stubPublicKeySerialized) };
     return provider as any;
   }
 });

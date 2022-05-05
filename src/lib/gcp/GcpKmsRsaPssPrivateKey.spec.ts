@@ -5,7 +5,7 @@ const KMS_KEY_PATH = 'projects/foo/key/42';
 test('KMS key path should be honored', () => {
   const key = new GcpKmsRsaPssPrivateKey(KMS_KEY_PATH);
 
-  expect(key.kmsKeyPath).toEqual(KMS_KEY_PATH);
+  expect(key.kmsKeyVersionPath).toEqual(KMS_KEY_PATH);
 });
 
 test('Algorithm should be RSA-PSS', () => {
