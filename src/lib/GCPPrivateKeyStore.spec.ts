@@ -147,7 +147,6 @@ describe('generateIdentityKeyPair', () => {
           filters: [{ name: 'key', op: '=', val: ID_KEY_OPTIONS.kmsKey }],
           kinds: ['identity_keys'],
           limitVal: 1,
-          selectVal: ['version'],
         }),
       );
     });

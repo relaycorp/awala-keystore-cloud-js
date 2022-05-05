@@ -129,7 +129,6 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   private async isInitialKeyVersionLinked(): Promise<boolean> {
     const query = this.datastoreClient
       .createQuery(ID_KEY_DATASTORE_KIND)
-      .select('version')
       .filter('key', '=', this.identityKeyOptions.kmsKey)
       .limit(1);
     try {
