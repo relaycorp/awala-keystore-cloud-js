@@ -132,8 +132,17 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       .select('version')
       .filter('key', '=', this.identityKeyOptions.kmsKey)
       .limit(1);
-    const [entities] = await this.datastoreClient.runQuery(query);
-    return !!entities.length;
+    try {
+      const [entities] = await this.datastoreClient.runQuery(query);
+      return !!entities.length;
+    } catch (err) {
+      if ((err as any).code === 9) {
+        // The index doesn't exist (most likely because the collection doesn't exist)
+        return false;
+      }
+
+      throw err;
+    }
   }
 
   private async linkKMSKeyVersion(

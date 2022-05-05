@@ -128,27 +128,97 @@ describe('generateIdentityKeyPair', () => {
     });
   });
 
-  test('Query to determine initial key version assignment should be efficient', async () => {
-    const datastoreClient = makeDatastoreClient();
-    const store = new GCPPrivateKeyStore(
-      makeKmsClient(),
-      datastoreClient,
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
-      makeRsaPssProvider(),
-    );
+  describe('Initial key version link check', () => {
+    test('Query to determine initial key version assignment should be efficient', async () => {
+      const datastoreClient = makeDatastoreClient();
+      const store = new GCPPrivateKeyStore(
+        makeKmsClient(),
+        datastoreClient,
+        ID_KEY_OPTIONS,
+        SESSION_KEY_OPTIONS,
+        GCP_OPTIONS,
+        makeRsaPssProvider(),
+      );
 
-    await store.generateIdentityKeyPair();
+      await store.generateIdentityKeyPair();
 
-    expect(datastoreClient.runQuery).toHaveBeenCalledWith(
-      expect.objectContaining<Partial<Query>>({
-        filters: [{ name: 'key', op: '=', val: ID_KEY_OPTIONS.kmsKey }],
-        kinds: ['identity_keys'],
-        limitVal: 1,
-        selectVal: ['version'],
-      }),
-    );
+      expect(datastoreClient.runQuery).toHaveBeenCalledWith(
+        expect.objectContaining<Partial<Query>>({
+          filters: [{ name: 'key', op: '=', val: ID_KEY_OPTIONS.kmsKey }],
+          kinds: ['identity_keys'],
+          limitVal: 1,
+          selectVal: ['version'],
+        }),
+      );
+    });
+
+    test('Link should be reported not to exist if Datastore index does not exist', async () => {
+      const error = new (class extends Error {
+        public readonly code = 9;
+      })('Index does not exit');
+      const kmsClient = makeKmsClient();
+      const store = new GCPPrivateKeyStore(
+        kmsClient,
+        makeDatastoreClient(error),
+        ID_KEY_OPTIONS,
+        SESSION_KEY_OPTIONS,
+        GCP_OPTIONS,
+        makeRsaPssProvider(),
+      );
+
+      await store.generateIdentityKeyPair();
+
+      // If no version was created, there was a link
+      expect(kmsClient.createCryptoKeyVersion).not.toHaveBeenCalled();
+    });
+
+    test('Link should be reported not to exist if query returns no results', async () => {
+      const kmsClient = makeKmsClient();
+      const store = new GCPPrivateKeyStore(
+        kmsClient,
+        makeDatastoreClient(null), // Return nothing
+        ID_KEY_OPTIONS,
+        SESSION_KEY_OPTIONS,
+        GCP_OPTIONS,
+        makeRsaPssProvider(),
+      );
+
+      await store.generateIdentityKeyPair();
+
+      // If no version was created, there was a link
+      expect(kmsClient.createCryptoKeyVersion).not.toHaveBeenCalled();
+    });
+
+    test('Link should be reported to exist if query returns results', async () => {
+      const kmsClient = makeKmsClient();
+      const store = new GCPPrivateKeyStore(
+        kmsClient,
+        makeDatastoreClient(),
+        ID_KEY_OPTIONS,
+        SESSION_KEY_OPTIONS,
+        GCP_OPTIONS,
+        makeRsaPssProvider(),
+      );
+
+      await store.generateIdentityKeyPair();
+
+      // If a new version was created, there was no link
+      expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalled();
+    });
+
+    test('Any error other than missing index should be propagated', async () => {
+      const error = new Error('Something really bad happened');
+      const store = new GCPPrivateKeyStore(
+        makeKmsClient(),
+        makeDatastoreClient(error),
+        ID_KEY_OPTIONS,
+        SESSION_KEY_OPTIONS,
+        GCP_OPTIONS,
+        makeRsaPssProvider(),
+      );
+
+      await expect(store.generateIdentityKeyPair()).rejects.toEqual(error);
+    });
   });
 
   describe('Initial key version assignment', () => {
@@ -380,15 +450,20 @@ describe('generateIdentityKeyPair', () => {
   }
 
   function makeDatastoreClient(
-    existingIdKey: DatastoreIdentityKeyEntity | null = {
+    existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
       key: ID_KEY_OPTIONS.kmsKey,
       version: '1',
     },
   ): Datastore {
     const datastore = new Datastore();
-    jest
-      .spyOn(datastore, 'runQuery')
-      .mockResolvedValue([existingIdKey ? [existingIdKey] : []] as never);
+
+    jest.spyOn(datastore, 'runQuery').mockImplementation(() => {
+      if (existingIdKey instanceof Error) {
+        throw existingIdKey;
+      }
+      return [existingIdKey ? [existingIdKey] : []];
+    });
+
     jest.spyOn(datastore, 'save').mockImplementation(() => undefined);
     return datastore;
   }
