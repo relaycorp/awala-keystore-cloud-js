@@ -81,23 +81,25 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     throw new Error('implement ' + keyId + keySerialized + peerPrivateAddress);
   }
 
-  private async linkKMSKeyVersion(
-    kmsKeyVersionPath: string,
-    privateAddress: string,
-    isInitialKeyVersionLinked: boolean,
+  private async validateExistingSigningKey(
+    kmsKeyName: string,
+    options: Partial<RSAKeyGenOptions>,
   ): Promise<void> {
-    const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
-    const identityKeyEntity: DatastoreIdentityKeyEntity = {
-      key: this.identityKeyOptions.kmsKey,
-      version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
-        kmsKeyVersionPath,
-      ) as string,
-    };
-    await this.datastoreClient.save({
-      data: identityKeyEntity,
-      excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
-      key: datastoreKey,
-    });
+    const [kmsKey] = await this.kmsClient.getCryptoKey({ name: kmsKeyName });
+    const keyAlgorithm = kmsKey.versionTemplate!.algorithm as string;
+    if (!keyAlgorithm.startsWith('RSA_SIGN_PSS_')) {
+      throw new GcpKmsError(`Key ${kmsKeyName} is not an RSA-PSS key`);
+    }
+
+    const requiredRSAModulus = options.modulus ?? 2048;
+    if (!keyAlgorithm.includes(`_${requiredRSAModulus}_`)) {
+      throw new GcpKmsError(`Key ${kmsKeyName} does not use modulus ${requiredRSAModulus}`);
+    }
+
+    const requiredHashingAlgorithm = options.hashingAlgorithm ?? 'SHA-256';
+    if (!keyAlgorithm.endsWith(requiredHashingAlgorithm.replace('-', ''))) {
+      throw new GcpKmsError(`Key ${kmsKeyName} does not use ${requiredHashingAlgorithm}`);
+    }
   }
 
   private async getOrCreateKMSVersion(
@@ -122,26 +124,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     );
   }
 
-  private async validateExistingSigningKey(
-    kmsKeyName: string,
-    options: Partial<RSAKeyGenOptions>,
-  ): Promise<void> {
-    const [kmsKey] = await this.kmsClient.getCryptoKey({ name: kmsKeyName });
-    const keyAlgorithm = kmsKey.versionTemplate!.algorithm as string;
-    if (!keyAlgorithm.startsWith('RSA_SIGN_PSS_')) {
-      throw new GcpKmsError(`Key ${kmsKeyName} is not an RSA-PSS key`);
-    }
-
-    const requiredRSAModulus = options.modulus ?? 2048;
-    if (!keyAlgorithm.includes(`_${requiredRSAModulus}_`)) {
-      throw new GcpKmsError(`Key ${kmsKeyName} does not use modulus ${requiredRSAModulus}`);
-    }
-
-    const requiredHashingAlgorithm = options.hashingAlgorithm ?? 'SHA-256';
-    if (!keyAlgorithm.endsWith(requiredHashingAlgorithm.replace('-', ''))) {
-      throw new GcpKmsError(`Key ${kmsKeyName} does not use ${requiredHashingAlgorithm}`);
-    }
-  }
+  //region Identity key linking
 
   private async isInitialKeyVersionLinked(): Promise<boolean> {
     const query = this.datastoreClient
@@ -152,4 +135,25 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     const [entities] = await this.datastoreClient.runQuery(query);
     return !!entities.length;
   }
+
+  private async linkKMSKeyVersion(
+    kmsKeyVersionPath: string,
+    privateAddress: string,
+    isInitialKeyVersionLinked: boolean,
+  ): Promise<void> {
+    const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
+    const identityKeyEntity: DatastoreIdentityKeyEntity = {
+      key: this.identityKeyOptions.kmsKey,
+      version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
+        kmsKeyVersionPath,
+      ) as string,
+    };
+    await this.datastoreClient.save({
+      data: identityKeyEntity,
+      excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
+      key: datastoreKey,
+    });
+  }
+
+  //endregion
 }
