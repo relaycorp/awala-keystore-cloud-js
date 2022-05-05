@@ -37,7 +37,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
 
     const [exportResponse] = await this.kmsClient.getPublicKey(
       { name: key.kmsKeyVersionPath },
-      { timeout: 500 },
+      { timeout: 500, maxRetries: 5 },
     );
     const publicKeyDer = pemToDer(exportResponse.pem!);
     return bufferToArrayBuffer(publicKeyDer);

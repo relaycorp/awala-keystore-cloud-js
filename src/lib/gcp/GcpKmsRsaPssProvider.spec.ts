@@ -188,6 +188,18 @@ describe('onExportKey', () => {
     );
   });
 
+  test('Public key export should be retried up to 5 times', async () => {
+    const kmsClient = makeKmsClient();
+    const provider = new GcpKmsRsaPssProvider(kmsClient);
+
+    await provider.exportKey('spki', PRIVATE_KEY);
+
+    expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxRetries: 5 }),
+    );
+  });
+
   test('Non-KMS key should be refused', async () => {
     const kmsClient = makeKmsClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
