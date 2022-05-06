@@ -1,3 +1,4 @@
+// tslint:disable:max-classes-per-file
 import { Datastore, Query } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
@@ -573,4 +574,26 @@ describe('retrieveIdentityKey', () => {
 
     return datastore;
   }
+});
+
+describe('saveIdentityKey', () => {
+  test('Method should not be supported', async () => {
+    const store = new class extends GCPPrivateKeyStore{
+      public async callSaveIdentityKey(): Promise<void> {
+        await this.saveIdentityKey()
+      }
+    }(
+      null as any,
+      null as any,
+      ID_KEY_OPTIONS,
+      SESSION_KEY_OPTIONS,
+      GCP_OPTIONS,
+      null as any,
+    );
+
+    await expect(store.callSaveIdentityKey()).rejects.toThrowWithMessage(
+      GcpKmsError,
+      'Method is not supported'
+    )
+  });
 });

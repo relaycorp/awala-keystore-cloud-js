@@ -86,12 +86,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     return new GcpKmsRsaPssPrivateKey(kmsKeyPath);
   }
 
-  protected async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {
-    throw new Error('implement ' + privateAddress + privateKey);
-  }
-
-  protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
-    throw new Error('implement ' + keyId);
+  protected async saveIdentityKey(): Promise<void> {
+    throw new GcpKmsError('Method is not supported');
   }
 
   protected async saveSessionKeySerialized(
@@ -100,6 +96,10 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     peerPrivateAddress?: string,
   ): Promise<void> {
     throw new Error('implement ' + keyId + keySerialized + peerPrivateAddress);
+  }
+
+  protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
+    throw new Error('implement ' + keyId);
   }
 
   private async validateExistingSigningKey(
