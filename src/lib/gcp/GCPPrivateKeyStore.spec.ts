@@ -12,19 +12,19 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
-import { GcpOptions } from './GcpOptions';
 import { GCPKeyOptions, GCPPrivateKeyStore } from './GCPPrivateKeyStore';
 
 const ID_KEY_OPTIONS: GCPKeyOptions = { kmsKey: 'the-id-key', kmsKeyRing: 'the-ring' };
 const SESSION_KEY_OPTIONS: GCPKeyOptions = { ...ID_KEY_OPTIONS, kmsKey: 'the-session-key' };
-const GCP_OPTIONS: GcpOptions = { location: 'westeros-east1', projectId: 'the-project' };
+const GCP_PROJECT = 'the-project';
+const GCP_LOCATION = 'westeros-east1';
 
 let kmsKeyPath: string;
 beforeAll(async () => {
   const kmsClient = new KeyManagementServiceClient();
   kmsKeyPath = kmsClient.cryptoKeyPath(
-    GCP_OPTIONS.projectId,
-    GCP_OPTIONS.location,
+    GCP_PROJECT,
+    GCP_LOCATION,
     ID_KEY_OPTIONS.kmsKeyRing,
     ID_KEY_OPTIONS.kmsKey,
   );
@@ -50,7 +50,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(undefined),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -67,7 +67,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(undefined),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -84,7 +84,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(undefined),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
       const modulus = 3072;
@@ -102,7 +102,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(undefined),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -119,7 +119,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(undefined),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
       const hashingAlgorithm = 'SHA-512';
@@ -139,7 +139,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -164,7 +164,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(error),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -181,7 +181,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(null), // Return nothing
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -198,7 +198,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -215,7 +215,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(error),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -231,7 +231,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(null),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -247,7 +247,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -269,7 +269,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -287,7 +287,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -309,7 +309,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -329,7 +329,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -349,7 +349,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -372,7 +372,7 @@ describe('generateIdentityKeyPair', () => {
         datastoreClient,
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         makeRsaPssProvider(),
       );
 
@@ -397,7 +397,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         mockRsaPssProvider,
       );
 
@@ -416,7 +416,7 @@ describe('generateIdentityKeyPair', () => {
         makeDatastoreClient(),
         ID_KEY_OPTIONS,
         SESSION_KEY_OPTIONS,
-        GCP_OPTIONS,
+        GCP_LOCATION,
         mockRsaPssProvider,
       );
 
@@ -438,8 +438,8 @@ describe('generateIdentityKeyPair', () => {
     });
 
     const versionName = kmsClient.cryptoKeyVersionPath(
-      GCP_OPTIONS.projectId,
-      GCP_OPTIONS.location,
+      GCP_PROJECT,
+      GCP_LOCATION,
       ID_KEY_OPTIONS.kmsKeyRing,
       ID_KEY_OPTIONS.kmsKey,
       versionId,
@@ -447,6 +447,8 @@ describe('generateIdentityKeyPair', () => {
     jest
       .spyOn(kmsClient, 'createCryptoKeyVersion')
       .mockImplementation(() => [{ name: versionName }, undefined, undefined]);
+
+    jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);
 
     return kmsClient;
   }
@@ -479,11 +481,11 @@ describe('generateIdentityKeyPair', () => {
 describe('retrieveIdentityKey', () => {
   test('Null should be returned if key is not found on Datastore', async () => {
     const store = new GCPPrivateKeyStore(
-      new KeyManagementServiceClient(),
+      makeKmsClient(),
       makeDatastoreClient(null),
       ID_KEY_OPTIONS,
       SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
+      GCP_LOCATION,
       null as any,
     );
 
@@ -493,11 +495,11 @@ describe('retrieveIdentityKey', () => {
   test('Datastore lookup error should be wrapped', async () => {
     const datastoreError = new Error('the planets were not aligned');
     const store = new GCPPrivateKeyStore(
-      new KeyManagementServiceClient(),
+      makeKmsClient(),
       makeDatastoreClient(datastoreError),
       ID_KEY_OPTIONS,
       SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
+      GCP_LOCATION,
       null as any,
     );
     const privateAddress = '0deadbeef';
@@ -513,13 +515,13 @@ describe('retrieveIdentityKey', () => {
 
   test('Key should be returned if found', async () => {
     const datastoreClient = makeDatastoreClient();
-    const kmsClient = new KeyManagementServiceClient();
+    const kmsClient = makeKmsClient();
     const store = new GCPPrivateKeyStore(
       kmsClient,
       datastoreClient,
       ID_KEY_OPTIONS,
       SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
+      GCP_LOCATION,
       null as any,
     );
     const privateAddress = '0deadbeef';
@@ -527,8 +529,8 @@ describe('retrieveIdentityKey', () => {
     const privateKey = await store.retrieveIdentityKey(privateAddress);
 
     const kmsKeyVersionPath = kmsClient.cryptoKeyVersionPath(
-      GCP_OPTIONS.projectId,
-      GCP_OPTIONS.location,
+      GCP_PROJECT,
+      GCP_LOCATION,
       ID_KEY_OPTIONS.kmsKeyRing,
       ID_KEY_OPTIONS.kmsKey,
       '1',
@@ -541,13 +543,13 @@ describe('retrieveIdentityKey', () => {
 
   test('Stored key name should override that of configuration', async () => {
     const kmsKey = `not-${ID_KEY_OPTIONS.kmsKey}`;
-    const kmsClient = new KeyManagementServiceClient();
+    const kmsClient = makeKmsClient();
     const store = new GCPPrivateKeyStore(
       kmsClient,
       makeDatastoreClient({ key: kmsKey, version: '1' }),
       ID_KEY_OPTIONS,
       SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
+      GCP_LOCATION,
       null as any,
     );
 
@@ -557,6 +559,12 @@ describe('retrieveIdentityKey', () => {
       kmsKey,
     );
   });
+
+  function makeKmsClient(): KeyManagementServiceClient {
+    const kmsClient = new KeyManagementServiceClient();
+    jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);
+    return kmsClient;
+  }
 
   function makeDatastoreClient(
     existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
@@ -578,22 +586,15 @@ describe('retrieveIdentityKey', () => {
 
 describe('saveIdentityKey', () => {
   test('Method should not be supported', async () => {
-    const store = new class extends GCPPrivateKeyStore{
+    const store = new (class extends GCPPrivateKeyStore {
       public async callSaveIdentityKey(): Promise<void> {
-        await this.saveIdentityKey()
+        await this.saveIdentityKey();
       }
-    }(
-      null as any,
-      null as any,
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_OPTIONS,
-      null as any,
-    );
+    })(null as any, null as any, ID_KEY_OPTIONS, SESSION_KEY_OPTIONS, GCP_LOCATION, null as any);
 
     await expect(store.callSaveIdentityKey()).rejects.toThrowWithMessage(
       GcpKmsError,
-      'Method is not supported'
-    )
+      'Method is not supported',
+    );
   });
 });

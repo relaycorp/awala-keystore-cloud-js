@@ -13,7 +13,6 @@ import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
-import { GcpOptions } from './GcpOptions';
 
 export interface GCPKeyOptions {
   readonly kmsKeyRing: string;
@@ -28,7 +27,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     protected datastoreClient: Datastore,
     protected identityKeyOptions: GCPKeyOptions,
     protected sessionKeyOptions: GCPKeyOptions,
-    protected gcpOptions: GcpOptions,
+    protected gcpLocation: string,
     protected rsaPSSProvider: GcpKmsRsaPssProvider,
   ) {
     super();
@@ -38,8 +37,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     options: Partial<RSAKeyGenOptions> = {},
   ): Promise<IdentityKeyPair> {
     const kmsKeyName = this.kmsClient.cryptoKeyPath(
-      this.gcpOptions.projectId,
-      this.gcpOptions.location,
+      await this.getGCPProjectId(),
+      this.gcpLocation,
       this.identityKeyOptions.kmsKeyRing,
       this.identityKeyOptions.kmsKey,
     );
@@ -77,8 +76,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       return null;
     }
     const kmsKeyPath = this.kmsClient.cryptoKeyVersionPath(
-      this.gcpOptions.projectId,
-      this.gcpOptions.location,
+      await this.getGCPProjectId(),
+      this.gcpLocation,
       this.identityKeyOptions.kmsKeyRing,
       keyDocument.key, // Ignore KMS key in the constructor to allow migrations within key ring
       keyDocument.version,
@@ -137,8 +136,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
 
     // Version 1 of the KMS key is unassigned so let's assign it by registering it on Datastore
     return this.kmsClient.cryptoKeyVersionPath(
-      this.gcpOptions.projectId,
-      this.gcpOptions.location,
+      await this.getGCPProjectId(),
+      this.gcpLocation,
       this.identityKeyOptions.kmsKeyRing,
       this.identityKeyOptions.kmsKey,
       '1', // TODO: GET LATEST VERSION INSTEAD
@@ -185,4 +184,9 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   }
 
   //endregion
+
+  private async getGCPProjectId(): Promise<string> {
+    // GCP client library already caches the project id.
+    return this.kmsClient.getProjectId();
+  }
 }
