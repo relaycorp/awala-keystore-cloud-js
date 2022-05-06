@@ -640,6 +640,52 @@ describe('saveSessionKeySerialized', () => {
   }
 });
 
+describe('retrieveSessionKeyData', () => {
+  test('Method should not be implemented', async () => {
+    const store = new GCPPrivateKeyStore(
+      makeKmsClientWithMockProject(),
+      makeDatastoreClient(),
+      KMS_CONFIG,
+    );
+
+    await expect(store.retrieveUnboundSessionKey(Buffer.from([]))).toReject();
+  });
+
+  test.todo('Document should be retrieved from session keys collection');
+
+  test.todo('Document name should be session key id');
+
+  test.todo('Unbound key should be returned regardless of peer');
+
+  test.todo('Bound key should not be returned if peer does not match');
+
+  test.todo('Bound key should be returned if peer matches');
+
+  describe('KMS decryption', () => {
+    test.todo('Specified KMS key should be used');
+
+    test.todo('Ciphertext should be taken from Datastore document');
+
+    test.todo('Request should time out after 500ms');
+  });
+
+  function makeDatastoreClient(
+    keyDocumentOrError: SessionKeyEntity | Error | null = {
+      creationDate: new Date(),
+      privateKeyCiphertext: Buffer.from([]),
+    },
+  ): Datastore {
+    const datastore = new Datastore();
+    jest.spyOn(datastore, 'get').mockImplementation(() => {
+      if (keyDocumentOrError instanceof Error) {
+        throw keyDocumentOrError;
+      }
+      return keyDocumentOrError ?? undefined;
+    });
+    return datastore;
+  }
+});
+
 function makeKmsClientWithMockProject(): KeyManagementServiceClient {
   const kmsClient = new KeyManagementServiceClient();
   jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);
