@@ -1,9 +1,9 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 
-import { bufferToArrayBuffer } from '../utils/buffer';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
+import { retrieveKMSPublicKey } from './kmsUtils';
 
 // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms
 const SUPPORTED_SALT_LENGTHS: readonly number[] = [
@@ -34,13 +34,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     if (!(key instanceof GcpKmsRsaPssPrivateKey)) {
       throw new GcpKmsError('Key is not managed by KMS');
     }
-
-    const [exportResponse] = await this.kmsClient.getPublicKey(
-      { name: key.kmsKeyVersionPath },
-      { timeout: 500, maxRetries: 5 },
-    );
-    const publicKeyDer = pemToDer(exportResponse.pem!);
-    return bufferToArrayBuffer(publicKeyDer);
+    return retrieveKMSPublicKey(key.kmsKeyVersionPath, this.kmsClient);
   }
 
   public async onSign(
@@ -70,9 +64,4 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
   public async onVerify(): Promise<boolean> {
     throw new GcpKmsError('Signature verification is unsupported');
   }
-}
-
-function pemToDer(pemBuffer: string): Buffer {
-  const oneliner = pemBuffer.toString().replace(/(-----[\w ]*-----|\n)/g, '');
-  return Buffer.from(oneliner, 'base64');
 }

@@ -12,7 +12,7 @@ import {
 import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
-import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+import { retrieveKMSPublicKey } from './kmsUtils';
 
 export interface KMSConfig {
   readonly location: string;
@@ -27,7 +27,6 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   constructor(
     protected kmsClient: KeyManagementServiceClient,
     protected datastoreClient: Datastore,
-    protected rsaPSSProvider: GcpKmsRsaPssProvider,
     protected kmsConfig: KMSConfig,
   ) {
     super();
@@ -51,8 +50,11 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     );
 
     const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath);
-    const kmsPublicKeySerialized = await this.rsaPSSProvider.onExportKey('spki', privateKey);
-    const publicKey = await derDeserializeRSAPublicKey(kmsPublicKeySerialized);
+    const publicKeySerialized = await retrieveKMSPublicKey(
+      privateKey.kmsKeyVersionPath,
+      this.kmsClient,
+    );
+    const publicKey = await derDeserializeRSAPublicKey(publicKeySerialized);
     const privateAddress = await getPrivateAddressFromIdentityKey(publicKey);
 
     await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress, isInitialKeyVersionLinked);
@@ -127,14 +129,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     isInitialKeyVersionLinked: boolean,
   ): Promise<string> {
     if (isInitialKeyVersionLinked) {
-      // Version 1 of the KMS key was already assigned, so create a new version.
+      // Version 1 of the KMS key was already linked, so create a new version.
       const [kmsVersionResponse] = await this.kmsClient.createCryptoKeyVersion({
         parent: kmsKeyName,
       });
       return kmsVersionResponse.name!;
     }
 
-    // Version 1 of the KMS key is unassigned so let's assign it by registering it on Datastore
+    // Version 1 of the KMS key is not linked so let's assign it by registering it on Datastore
     return this.kmsClient.cryptoKeyVersionPath(
       await this.getGCPProjectId(),
       this.kmsConfig.location,

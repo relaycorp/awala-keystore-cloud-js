@@ -1,10 +1,12 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { CryptoKey } from 'webcrypto-core';
 
+import { mockSpy } from '../../testUtils/jest';
 import { bufferToArrayBuffer } from '../utils/buffer';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+import * as kmsUtils from './kmsUtils';
 
 const ALGORITHM = { name: 'RSA-PSS', saltLength: 32 };
 
@@ -146,63 +148,38 @@ describe('onVerify', () => {
 });
 
 describe('onExportKey', () => {
+  const publicKeyDer = Buffer.from('This is a DER-encoded public key :wink:');
+  const mockRetrieveKMSPublicKey = mockSpy(jest.spyOn(kmsUtils, 'retrieveKMSPublicKey'), () =>
+    bufferToArrayBuffer(publicKeyDer),
+  );
+
   test.each(['jwt', 'pkcs8', 'raw'] as readonly KeyFormat[])(
     '%s export should be unsupported',
     async (format) => {
-      const kmsClient = makeKmsClient();
-      const provider = new GcpKmsRsaPssProvider(kmsClient);
+      const provider = new GcpKmsRsaPssProvider(null as any);
 
       await expect(provider.onExportKey(format, PRIVATE_KEY)).rejects.toThrowWithMessage(
         GcpKmsError,
         'Private key cannot be exported',
       );
 
-      expect(kmsClient.getPublicKey).not.toHaveBeenCalled();
+      expect(mockRetrieveKMSPublicKey).not.toHaveBeenCalled();
     },
   );
 
   test('SPKI format should be supported', async () => {
-    const publicKeyDer = Buffer.from('This is a DER-encoded public key :wink:');
-    const kmsClient = makeKmsClient(derToPem(publicKeyDer));
+    const kmsClient = new KeyManagementServiceClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
     const publicKey = await provider.exportKey('spki', PRIVATE_KEY);
 
     expect(publicKey).toBeInstanceOf(ArrayBuffer);
     expect(Buffer.from(publicKey as ArrayBuffer)).toEqual(publicKeyDer);
-    expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
-      expect.objectContaining({ name: PRIVATE_KEY.kmsKeyVersionPath }),
-      expect.anything(),
-    );
-  });
-
-  test('Public key export should time out after 500ms', async () => {
-    const kmsClient = makeKmsClient();
-    const provider = new GcpKmsRsaPssProvider(kmsClient);
-
-    await provider.exportKey('spki', PRIVATE_KEY);
-
-    expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ timeout: 500 }),
-    );
-  });
-
-  test('Public key export should be retried up to 5 times', async () => {
-    const kmsClient = makeKmsClient();
-    const provider = new GcpKmsRsaPssProvider(kmsClient);
-
-    await provider.exportKey('spki', PRIVATE_KEY);
-
-    expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ maxRetries: 5 }),
-    );
+    expect(mockRetrieveKMSPublicKey).toHaveBeenCalledWith(PRIVATE_KEY.kmsKeyVersionPath, kmsClient);
   });
 
   test('Non-KMS key should be refused', async () => {
-    const kmsClient = makeKmsClient();
-    const provider = new GcpKmsRsaPssProvider(kmsClient);
+    const provider = new GcpKmsRsaPssProvider(null as any);
     const invalidKey = new CryptoKey();
 
     await expect(provider.onExportKey('spki', invalidKey)).rejects.toThrowWithMessage(
@@ -210,20 +187,6 @@ describe('onExportKey', () => {
       'Key is not managed by KMS',
     );
 
-    expect(kmsClient.getPublicKey).not.toHaveBeenCalled();
+    expect(mockRetrieveKMSPublicKey).not.toHaveBeenCalled();
   });
-
-  function makeKmsClient(publicKeyPem: string = 'pub key'): KeyManagementServiceClient {
-    const kmsClient = new KeyManagementServiceClient();
-    const mockResponse = { pem: publicKeyPem };
-    jest
-      .spyOn(kmsClient, 'getPublicKey')
-      .mockImplementation(() => [mockResponse, undefined, undefined]);
-    return kmsClient;
-  }
-
-  function derToPem(derBuffer: Buffer): string {
-    const lines = derBuffer.toString('base64').match(/.{1,64}/g)!;
-    return [`-----BEGIN PUBLIC KEY-----`, ...lines, `-----END PUBLIC KEY-----`].join('\n');
-  }
 });
