@@ -12,21 +12,24 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
-import { GCPKeyOptions, GCPPrivateKeyStore } from './GCPPrivateKeyStore';
+import { GCPPrivateKeyStore, KMSConfig } from './GCPPrivateKeyStore';
 
-const ID_KEY_OPTIONS: GCPKeyOptions = { kmsKey: 'the-id-key', kmsKeyRing: 'the-ring' };
-const SESSION_KEY_OPTIONS: GCPKeyOptions = { ...ID_KEY_OPTIONS, kmsKey: 'the-session-key' };
 const GCP_PROJECT = 'the-project';
-const GCP_LOCATION = 'westeros-east1';
+const KMS_CONFIG: KMSConfig = {
+  identityKeyId: 'the-id-key',
+  keyRing: 'the-ring',
+  location: 'westeros-east1',
+  sessionKeyId: 'the-session-key',
+};
 
-let kmsKeyPath: string;
+let kmsIdentityKeyPath: string;
 beforeAll(async () => {
   const kmsClient = new KeyManagementServiceClient();
-  kmsKeyPath = kmsClient.cryptoKeyPath(
+  kmsIdentityKeyPath = kmsClient.cryptoKeyPath(
     GCP_PROJECT,
-    GCP_LOCATION,
-    ID_KEY_OPTIONS.kmsKeyRing,
-    ID_KEY_OPTIONS.kmsKey,
+    KMS_CONFIG.location,
+    KMS_CONFIG.keyRing,
+    KMS_CONFIG.identityKeyId,
   );
   await kmsClient.close();
 });
@@ -48,15 +51,13 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(undefined),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${kmsKeyPath} is not an RSA-PSS key`,
+        `Key ${kmsIdentityKeyPath} is not an RSA-PSS key`,
       );
     });
 
@@ -65,15 +66,13 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(undefined),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${kmsKeyPath} does not use modulus 2048`,
+        `Key ${kmsIdentityKeyPath} does not use modulus 2048`,
       );
     });
 
@@ -82,16 +81,14 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(undefined),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
       const modulus = 3072;
 
       await expect(store.generateIdentityKeyPair({ modulus })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${kmsKeyPath} does not use modulus ${modulus}`,
+        `Key ${kmsIdentityKeyPath} does not use modulus ${modulus}`,
       );
     });
 
@@ -100,15 +97,13 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(undefined),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${kmsKeyPath} does not use SHA-256`,
+        `Key ${kmsIdentityKeyPath} does not use SHA-256`,
       );
     });
 
@@ -117,16 +112,14 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(undefined),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
       const hashingAlgorithm = 'SHA-512';
 
       await expect(store.generateIdentityKeyPair({ hashingAlgorithm })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${kmsKeyPath} does not use ${hashingAlgorithm}`,
+        `Key ${kmsIdentityKeyPath} does not use ${hashingAlgorithm}`,
       );
     });
   });
@@ -137,17 +130,15 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
 
       expect(datastoreClient.runQuery).toHaveBeenCalledWith(
         expect.objectContaining<Partial<Query>>({
-          filters: [{ name: 'key', op: '=', val: ID_KEY_OPTIONS.kmsKey }],
+          filters: [{ name: 'key', op: '=', val: KMS_CONFIG.identityKeyId }],
           kinds: ['identity_keys'],
           limitVal: 1,
         }),
@@ -162,10 +153,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(error),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -179,10 +168,9 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(null), // Return nothing
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
+
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -196,10 +184,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -213,10 +199,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         makeDatastoreClient(error),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await expect(store.generateIdentityKeyPair()).rejects.toEqual(error);
@@ -229,10 +213,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(null),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -245,10 +227,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -267,16 +247,14 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         kmsClient,
         makeDatastoreClient(),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
 
       expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
-        expect.objectContaining({ parent: kmsKeyPath }),
+        expect.objectContaining({ parent: kmsIdentityKeyPath }),
       );
     });
 
@@ -285,10 +263,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -307,10 +283,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -327,10 +301,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -347,10 +319,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -358,7 +328,7 @@ describe('generateIdentityKeyPair', () => {
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining<Partial<DatastoreIdentityKeyEntity>>({
-            key: ID_KEY_OPTIONS.kmsKey,
+            key: KMS_CONFIG.identityKeyId,
           }),
         }),
       );
@@ -370,10 +340,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient({ versionId: kmsKeyVersion }),
         datastoreClient,
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         makeRsaPssProvider(),
+        KMS_CONFIG,
       );
 
       await store.generateIdentityKeyPair();
@@ -395,10 +363,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         makeDatastoreClient(),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         mockRsaPssProvider,
+        KMS_CONFIG,
       );
 
       const { privateKey, publicKey } = await store.generateIdentityKeyPair();
@@ -414,10 +380,8 @@ describe('generateIdentityKeyPair', () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClient(),
         makeDatastoreClient(),
-        ID_KEY_OPTIONS,
-        SESSION_KEY_OPTIONS,
-        GCP_LOCATION,
         mockRsaPssProvider,
+        KMS_CONFIG,
       );
 
       const { privateAddress } = await store.generateIdentityKeyPair();
@@ -433,15 +397,15 @@ describe('generateIdentityKeyPair', () => {
     const kmsClient = new KeyManagementServiceClient();
 
     jest.spyOn(kmsClient, 'getCryptoKey').mockImplementation(async (request) => {
-      expect(request.name).toEqual(kmsKeyPath);
+      expect(request.name).toEqual(kmsIdentityKeyPath);
       return [{ versionTemplate: { algorithm: cryptoKeyAlgorithm } }];
     });
 
     const versionName = kmsClient.cryptoKeyVersionPath(
       GCP_PROJECT,
-      GCP_LOCATION,
-      ID_KEY_OPTIONS.kmsKeyRing,
-      ID_KEY_OPTIONS.kmsKey,
+      KMS_CONFIG.location,
+      KMS_CONFIG.keyRing,
+      KMS_CONFIG.identityKeyId,
       versionId,
     );
     jest
@@ -455,7 +419,7 @@ describe('generateIdentityKeyPair', () => {
 
   function makeDatastoreClient(
     existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
-      key: ID_KEY_OPTIONS.kmsKey,
+      key: KMS_CONFIG.identityKeyId,
       version: '1',
     },
   ): Datastore {
@@ -483,10 +447,8 @@ describe('retrieveIdentityKey', () => {
     const store = new GCPPrivateKeyStore(
       makeKmsClient(),
       makeDatastoreClient(null),
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_LOCATION,
       null as any,
+      KMS_CONFIG,
     );
 
     await expect(store.retrieveIdentityKey('non-existing')).resolves.toBeNull();
@@ -497,10 +459,8 @@ describe('retrieveIdentityKey', () => {
     const store = new GCPPrivateKeyStore(
       makeKmsClient(),
       makeDatastoreClient(datastoreError),
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_LOCATION,
       null as any,
+      KMS_CONFIG,
     );
     const privateAddress = '0deadbeef';
 
@@ -516,23 +476,16 @@ describe('retrieveIdentityKey', () => {
   test('Key should be returned if found', async () => {
     const datastoreClient = makeDatastoreClient();
     const kmsClient = makeKmsClient();
-    const store = new GCPPrivateKeyStore(
-      kmsClient,
-      datastoreClient,
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_LOCATION,
-      null as any,
-    );
+    const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, null as any, KMS_CONFIG);
     const privateAddress = '0deadbeef';
 
     const privateKey = await store.retrieveIdentityKey(privateAddress);
 
     const kmsKeyVersionPath = kmsClient.cryptoKeyVersionPath(
       GCP_PROJECT,
-      GCP_LOCATION,
-      ID_KEY_OPTIONS.kmsKeyRing,
-      ID_KEY_OPTIONS.kmsKey,
+      KMS_CONFIG.location,
+      KMS_CONFIG.keyRing,
+      KMS_CONFIG.identityKeyId,
       '1',
     );
     expect(privateKey?.kmsKeyVersionPath).toEqual(kmsKeyVersionPath);
@@ -542,15 +495,13 @@ describe('retrieveIdentityKey', () => {
   });
 
   test('Stored key name should override that of configuration', async () => {
-    const kmsKey = `not-${ID_KEY_OPTIONS.kmsKey}`;
+    const kmsKey = `not-${KMS_CONFIG.identityKeyId}`;
     const kmsClient = makeKmsClient();
     const store = new GCPPrivateKeyStore(
       kmsClient,
       makeDatastoreClient({ key: kmsKey, version: '1' }),
-      ID_KEY_OPTIONS,
-      SESSION_KEY_OPTIONS,
-      GCP_LOCATION,
       null as any,
+      KMS_CONFIG,
     );
 
     const privateKey = await store.retrieveIdentityKey('0deadbeef');
@@ -568,7 +519,7 @@ describe('retrieveIdentityKey', () => {
 
   function makeDatastoreClient(
     existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
-      key: ID_KEY_OPTIONS.kmsKey,
+      key: KMS_CONFIG.identityKeyId,
       version: '1',
     },
   ): Datastore {
@@ -590,7 +541,7 @@ describe('saveIdentityKey', () => {
       public async callSaveIdentityKey(): Promise<void> {
         await this.saveIdentityKey();
       }
-    })(null as any, null as any, ID_KEY_OPTIONS, SESSION_KEY_OPTIONS, GCP_LOCATION, null as any);
+    })(null as any, null as any, null as any, KMS_CONFIG);
 
     await expect(store.callSaveIdentityKey()).rejects.toThrowWithMessage(
       GcpKmsError,

@@ -14,9 +14,11 @@ import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 
-export interface GCPKeyOptions {
-  readonly kmsKeyRing: string;
-  readonly kmsKey: string;
+export interface KMSConfig {
+  readonly location: string;
+  readonly keyRing: string;
+  readonly identityKeyId: string;
+  readonly sessionKeyId: string;
 }
 
 const ID_KEY_DATASTORE_KIND = 'identity_keys';
@@ -25,10 +27,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   constructor(
     protected kmsClient: KeyManagementServiceClient,
     protected datastoreClient: Datastore,
-    protected identityKeyOptions: GCPKeyOptions,
-    protected sessionKeyOptions: GCPKeyOptions,
-    protected gcpLocation: string,
     protected rsaPSSProvider: GcpKmsRsaPssProvider,
+    protected kmsConfig: KMSConfig,
   ) {
     super();
   }
@@ -38,14 +38,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   ): Promise<IdentityKeyPair> {
     const kmsKeyName = this.kmsClient.cryptoKeyPath(
       await this.getGCPProjectId(),
-      this.gcpLocation,
-      this.identityKeyOptions.kmsKeyRing,
-      this.identityKeyOptions.kmsKey,
+      this.kmsConfig.location,
+      this.kmsConfig.keyRing,
+      this.kmsConfig.identityKeyId,
     );
     await this.validateExistingSigningKey(kmsKeyName, options);
 
     const isInitialKeyVersionLinked = await this.isInitialKeyVersionLinked();
-    const kmsKeyVersionPath = await this.getOrCreateKMSVersion(
+    const kmsKeyVersionPath = await this.getOrCreateSigningKMSKeyVersion(
       kmsKeyName,
       isInitialKeyVersionLinked,
     );
@@ -77,8 +77,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     }
     const kmsKeyPath = this.kmsClient.cryptoKeyVersionPath(
       await this.getGCPProjectId(),
-      this.gcpLocation,
-      this.identityKeyOptions.kmsKeyRing,
+      this.kmsConfig.location,
+      this.kmsConfig.keyRing,
       keyDocument.key, // Ignore KMS key in the constructor to allow migrations within key ring
       keyDocument.version,
     );
@@ -122,7 +122,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     }
   }
 
-  private async getOrCreateKMSVersion(
+  private async getOrCreateSigningKMSKeyVersion(
     kmsKeyName: string,
     isInitialKeyVersionLinked: boolean,
   ): Promise<string> {
@@ -137,9 +137,9 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     // Version 1 of the KMS key is unassigned so let's assign it by registering it on Datastore
     return this.kmsClient.cryptoKeyVersionPath(
       await this.getGCPProjectId(),
-      this.gcpLocation,
-      this.identityKeyOptions.kmsKeyRing,
-      this.identityKeyOptions.kmsKey,
+      this.kmsConfig.location,
+      this.kmsConfig.keyRing,
+      this.kmsConfig.identityKeyId,
       '1', // TODO: GET LATEST VERSION INSTEAD
     );
   }
@@ -149,7 +149,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   private async isInitialKeyVersionLinked(): Promise<boolean> {
     const query = this.datastoreClient
       .createQuery(ID_KEY_DATASTORE_KIND)
-      .filter('key', '=', this.identityKeyOptions.kmsKey)
+      .filter('key', '=', this.kmsConfig.identityKeyId)
       .limit(1);
     try {
       const [entities] = await this.datastoreClient.runQuery(query);
@@ -171,7 +171,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   ): Promise<void> {
     const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
     const identityKeyEntity: DatastoreIdentityKeyEntity = {
-      key: this.identityKeyOptions.kmsKey,
+      key: this.kmsConfig.identityKeyId,
       version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
         kmsKeyVersionPath,
       ) as string,
