@@ -6,16 +6,29 @@ import {
   getPrivateAddressFromIdentityKey,
 } from '@relaycorp/relaynet-core';
 
-import { DatastoreIdentityKeyEntity } from './gcp/DatastoreIdentityKeyEntity';
-import { GcpKmsError } from './gcp/GcpKmsError';
-import { GcpKmsRsaPssProvider } from './gcp/GcpKmsRsaPssProvider';
-import { GcpOptions } from './gcp/GcpOptions';
+import { catchPromiseRejection } from '../../testUtils/promises';
+import { bufferToArrayBuffer } from '../utils/buffer';
+import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
+import { GcpKmsError } from './GcpKmsError';
+import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+import { GcpOptions } from './GcpOptions';
 import { GCPKeyOptions, GCPPrivateKeyStore } from './GCPPrivateKeyStore';
-import { bufferToArrayBuffer } from './utils/buffer';
 
 const ID_KEY_OPTIONS: GCPKeyOptions = { kmsKey: 'the-id-key', kmsKeyRing: 'the-ring' };
 const SESSION_KEY_OPTIONS: GCPKeyOptions = { ...ID_KEY_OPTIONS, kmsKey: 'the-session-key' };
 const GCP_OPTIONS: GcpOptions = { location: 'westeros-east1', projectId: 'the-project' };
+
+let kmsKeyPath: string;
+beforeAll(async () => {
+  const kmsClient = new KeyManagementServiceClient();
+  kmsKeyPath = kmsClient.cryptoKeyPath(
+    GCP_OPTIONS.projectId,
+    GCP_OPTIONS.location,
+    ID_KEY_OPTIONS.kmsKeyRing,
+    ID_KEY_OPTIONS.kmsKey,
+  );
+  await kmsClient.close();
+});
 
 describe('generateIdentityKeyPair', () => {
   let stubPublicKey: CryptoKey;
@@ -26,17 +39,6 @@ describe('generateIdentityKeyPair', () => {
     stubPublicKey = keyPair.publicKey;
     stubPublicKeySerialized = bufferToArrayBuffer(await derSerializePublicKey(stubPublicKey));
     stubPrivateAddress = await getPrivateAddressFromIdentityKey(stubPublicKey);
-  });
-
-  let cryptoKeyPath: string;
-  beforeAll(() => {
-    const kmsClient = makeKmsClient();
-    cryptoKeyPath = kmsClient.cryptoKeyPath(
-      GCP_OPTIONS.projectId,
-      GCP_OPTIONS.location,
-      ID_KEY_OPTIONS.kmsKeyRing,
-      ID_KEY_OPTIONS.kmsKey,
-    );
   });
 
   describe('Key validation', () => {
@@ -53,7 +55,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${cryptoKeyPath} is not an RSA-PSS key`,
+        `Key ${kmsKeyPath} is not an RSA-PSS key`,
       );
     });
 
@@ -70,7 +72,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${cryptoKeyPath} does not use modulus 2048`,
+        `Key ${kmsKeyPath} does not use modulus 2048`,
       );
     });
 
@@ -88,7 +90,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair({ modulus })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${cryptoKeyPath} does not use modulus ${modulus}`,
+        `Key ${kmsKeyPath} does not use modulus ${modulus}`,
       );
     });
 
@@ -105,7 +107,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair()).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${cryptoKeyPath} does not use SHA-256`,
+        `Key ${kmsKeyPath} does not use SHA-256`,
       );
     });
 
@@ -123,7 +125,7 @@ describe('generateIdentityKeyPair', () => {
 
       await expect(store.generateIdentityKeyPair({ hashingAlgorithm })).rejects.toThrowWithMessage(
         GcpKmsError,
-        `Key ${cryptoKeyPath} does not use ${hashingAlgorithm}`,
+        `Key ${kmsKeyPath} does not use ${hashingAlgorithm}`,
       );
     });
   });
@@ -273,7 +275,7 @@ describe('generateIdentityKeyPair', () => {
       await store.generateIdentityKeyPair();
 
       expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
-        expect.objectContaining({ parent: cryptoKeyPath }),
+        expect.objectContaining({ parent: kmsKeyPath }),
       );
     });
 
@@ -430,7 +432,7 @@ describe('generateIdentityKeyPair', () => {
     const kmsClient = new KeyManagementServiceClient();
 
     jest.spyOn(kmsClient, 'getCryptoKey').mockImplementation(async (request) => {
-      expect(request.name).toEqual(cryptoKeyPath);
+      expect(request.name).toEqual(kmsKeyPath);
       return [{ versionTemplate: { algorithm: cryptoKeyAlgorithm } }];
     });
 
@@ -470,5 +472,105 @@ describe('generateIdentityKeyPair', () => {
   function makeRsaPssProvider(): GcpKmsRsaPssProvider {
     const provider = { onExportKey: jest.fn().mockResolvedValue(stubPublicKeySerialized) };
     return provider as any;
+  }
+});
+
+describe('retrieveIdentityKey', () => {
+  test('Null should be returned if key is not found on Datastore', async () => {
+    const store = new GCPPrivateKeyStore(
+      new KeyManagementServiceClient(),
+      makeDatastoreClient(null),
+      ID_KEY_OPTIONS,
+      SESSION_KEY_OPTIONS,
+      GCP_OPTIONS,
+      null as any,
+    );
+
+    await expect(store.retrieveIdentityKey('non-existing')).resolves.toBeNull();
+  });
+
+  test('Datastore lookup error should be wrapped', async () => {
+    const datastoreError = new Error('the planets were not aligned');
+    const store = new GCPPrivateKeyStore(
+      new KeyManagementServiceClient(),
+      makeDatastoreClient(datastoreError),
+      ID_KEY_OPTIONS,
+      SESSION_KEY_OPTIONS,
+      GCP_OPTIONS,
+      null as any,
+    );
+    const privateAddress = '0deadbeef';
+
+    const error = await catchPromiseRejection(
+      store.retrieveIdentityKey(privateAddress),
+      GcpKmsError,
+    );
+
+    expect(error.message).toStartWith(`Failed to look up KMS key version for ${privateAddress}`);
+    expect(error.cause()).toEqual(datastoreError);
+  });
+
+  test('Key should be returned if found', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const kmsClient = new KeyManagementServiceClient();
+    const store = new GCPPrivateKeyStore(
+      kmsClient,
+      datastoreClient,
+      ID_KEY_OPTIONS,
+      SESSION_KEY_OPTIONS,
+      GCP_OPTIONS,
+      null as any,
+    );
+    const privateAddress = '0deadbeef';
+
+    const privateKey = await store.retrieveIdentityKey(privateAddress);
+
+    const kmsKeyVersionPath = kmsClient.cryptoKeyVersionPath(
+      GCP_OPTIONS.projectId,
+      GCP_OPTIONS.location,
+      ID_KEY_OPTIONS.kmsKeyRing,
+      ID_KEY_OPTIONS.kmsKey,
+      '1',
+    );
+    expect(privateKey?.kmsKeyVersionPath).toEqual(kmsKeyVersionPath);
+    expect(datastoreClient.get).toHaveBeenCalledWith(
+      datastoreClient.key(['identity_keys', privateAddress]),
+    );
+  });
+
+  test('Stored key name should override that of configuration', async () => {
+    const kmsKey = `not-${ID_KEY_OPTIONS.kmsKey}`;
+    const kmsClient = new KeyManagementServiceClient();
+    const store = new GCPPrivateKeyStore(
+      kmsClient,
+      makeDatastoreClient({ key: kmsKey, version: '1' }),
+      ID_KEY_OPTIONS,
+      SESSION_KEY_OPTIONS,
+      GCP_OPTIONS,
+      null as any,
+    );
+
+    const privateKey = await store.retrieveIdentityKey('0deadbeef');
+
+    expect(kmsClient.matchCryptoKeyFromCryptoKeyVersionName(privateKey!.kmsKeyVersionPath)).toEqual(
+      kmsKey,
+    );
+  });
+
+  function makeDatastoreClient(
+    existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
+      key: ID_KEY_OPTIONS.kmsKey,
+      version: '1',
+    },
+  ): Datastore {
+    const datastore = new Datastore();
+    jest.spyOn(datastore, 'get').mockImplementation(() => {
+      if (existingIdKey instanceof Error) {
+        throw existingIdKey;
+      }
+      return [existingIdKey ?? undefined];
+    });
+
+    return datastore;
   }
 });

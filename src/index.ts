@@ -1,1 +1,1 @@
-export { GCPPrivateKeyStore } from './lib/GCPPrivateKeyStore';
+export { GCPPrivateKeyStore } from './lib/gcp/GCPPrivateKeyStore';

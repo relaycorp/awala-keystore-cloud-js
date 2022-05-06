@@ -9,11 +9,11 @@ import {
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
 
-import { DatastoreIdentityKeyEntity } from './gcp/DatastoreIdentityKeyEntity';
-import { GcpKmsError } from './gcp/GcpKmsError';
-import { GcpKmsRsaPssPrivateKey } from './gcp/GcpKmsRsaPssPrivateKey';
-import { GcpKmsRsaPssProvider } from './gcp/GcpKmsRsaPssProvider';
-import { GcpOptions } from './gcp/GcpOptions';
+import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
+import { GcpKmsError } from './GcpKmsError';
+import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
+import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+import { GcpOptions } from './GcpOptions';
 
 export interface GCPKeyOptions {
   readonly kmsKeyRing: string;
@@ -32,10 +32,6 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     protected rsaPSSProvider: GcpKmsRsaPssProvider,
   ) {
     super();
-  }
-
-  public async retrieveIdentityKey(privateAddress: string): Promise<CryptoKey | null> {
-    throw new Error('implement ' + privateAddress);
   }
 
   public override async generateIdentityKeyPair(
@@ -63,6 +59,31 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress, isInitialKeyVersionLinked);
 
     return { privateAddress, privateKey, publicKey };
+  }
+
+  public async retrieveIdentityKey(privateAddress: string): Promise<GcpKmsRsaPssPrivateKey | null> {
+    const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
+    let keyDocument: DatastoreIdentityKeyEntity | undefined;
+    try {
+      const [entity] = await this.datastoreClient.get(datastoreKey);
+      keyDocument = entity;
+    } catch (err) {
+      throw new GcpKmsError(
+        err as Error,
+        `Failed to look up KMS key version for ${privateAddress}`,
+      );
+    }
+    if (!keyDocument) {
+      return null;
+    }
+    const kmsKeyPath = this.kmsClient.cryptoKeyVersionPath(
+      this.gcpOptions.projectId,
+      this.gcpOptions.location,
+      this.identityKeyOptions.kmsKeyRing,
+      keyDocument.key, // Ignore KMS key in the constructor to allow migrations within key ring
+      keyDocument.version,
+    );
+    return new GcpKmsRsaPssPrivateKey(kmsKeyPath);
   }
 
   protected async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {

@@ -29,7 +29,7 @@ module.exports = {
 
   // An array of regexp pattern strings used to skip coverage collection
   coveragePathIgnorePatterns: [
-    "_test_utils\.[tj]s",
+    "/testUtils",
   ],
 
   // A list of reporter names that Jest uses when writing coverage reports
