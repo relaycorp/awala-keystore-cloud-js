@@ -25,7 +25,7 @@ const KMS_CONFIG: KMSConfig = {
   identityKeyId: 'the-id-key',
   keyRing: 'the-ring',
   location: 'westeros-east1',
-  sessionKeyId: 'the-session-key',
+  sessionEncryptionKeyId: 'the-session-key',
 };
 
 let kmsIdentityKeyPath: string;
@@ -42,7 +42,7 @@ beforeAll(async () => {
     GCP_PROJECT,
     KMS_CONFIG.location,
     KMS_CONFIG.keyRing,
-    KMS_CONFIG.sessionKeyId,
+    KMS_CONFIG.sessionEncryptionKeyId,
   );
   await kmsClient.close();
 });
@@ -562,7 +562,7 @@ describe('saveSessionKeySerialized', () => {
     );
   });
 
-  test('Creation date should be stored', async () => {
+  test('Creation date should be stored and indexed', async () => {
     const datastoreClient = makeDatastoreClient();
     const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
     const beforeDate = new Date();
@@ -575,6 +575,7 @@ describe('saveSessionKeySerialized', () => {
         data: expect.objectContaining<Partial<SessionKeyEntity>>({
           creationDate: expect.toSatisfy((date) => beforeDate <= date && date <= afterDate),
         }),
+        excludeFromIndexes: expect.not.arrayContaining<keyof SessionKeyEntity>(['creationDate']),
       }),
     );
   });

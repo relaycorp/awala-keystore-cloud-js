@@ -19,8 +19,13 @@ export interface KMSConfig {
   readonly location: string;
   readonly keyRing: string;
   readonly identityKeyId: string;
-  readonly sessionKeyId: string;
+  readonly sessionEncryptionKeyId: string;
 }
+
+const SESSION_KEY_INDEX_EXCLUSIONS: ReadonlyArray<keyof SessionKeyEntity> = [
+  'peerPrivateAddress',
+  'privateKeyCiphertext',
+];
 
 export class GCPPrivateKeyStore extends PrivateKeyStore {
   constructor(
@@ -103,7 +108,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     };
     await this.datastoreClient.insert({
       data,
-      excludeFromIndexes: ['peerPrivateAddress', 'privateKeyCiphertext'],
+      excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS,
       key: datastoreKey,
     });
   }
@@ -202,7 +207,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       await this.getGCPProjectId(),
       this.kmsConfig.location,
       this.kmsConfig.keyRing,
-      this.kmsConfig.sessionKeyId,
+      this.kmsConfig.sessionEncryptionKeyId,
     );
     const [encryptResponse] = await this.kmsClient.encrypt(
       { name: kmsKeyName, plaintext: keySerialized },
