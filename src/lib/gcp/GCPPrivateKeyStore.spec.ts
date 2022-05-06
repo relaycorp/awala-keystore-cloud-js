@@ -1,16 +1,20 @@
 // tslint:disable:max-classes-per-file
+
 import { Datastore, Query } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
+  derSerializePrivateKey,
   derSerializePublicKey,
   generateRSAKeyPair,
   getPrivateAddressFromIdentityKey,
+  SessionKeyPair,
 } from '@relaycorp/relaynet-core';
 
 import { mockSpy } from '../../testUtils/jest';
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { bufferToArrayBuffer } from '../utils/buffer';
-import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
+import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
+import { DatastoreKinds } from './DatastoreKinds';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GCPPrivateKeyStore, KMSConfig } from './GCPPrivateKeyStore';
@@ -25,6 +29,7 @@ const KMS_CONFIG: KMSConfig = {
 };
 
 let kmsIdentityKeyPath: string;
+let kmsSessionKeyPath: string;
 beforeAll(async () => {
   const kmsClient = new KeyManagementServiceClient();
   kmsIdentityKeyPath = kmsClient.cryptoKeyPath(
@@ -32,6 +37,12 @@ beforeAll(async () => {
     KMS_CONFIG.location,
     KMS_CONFIG.keyRing,
     KMS_CONFIG.identityKeyId,
+  );
+  kmsSessionKeyPath = kmsClient.cryptoKeyPath(
+    GCP_PROJECT,
+    KMS_CONFIG.location,
+    KMS_CONFIG.keyRing,
+    KMS_CONFIG.sessionKeyId,
   );
   await kmsClient.close();
 });
@@ -116,7 +127,7 @@ describe('generateIdentityKeyPair', () => {
       expect(datastoreClient.runQuery).toHaveBeenCalledWith(
         expect.objectContaining<Partial<Query>>({
           filters: [{ name: 'key', op: '=', val: KMS_CONFIG.identityKeyId }],
-          kinds: ['identity_keys'],
+          kinds: [DatastoreKinds.IDENTITY_KEYS],
           limitVal: 1,
         }),
       );
@@ -181,7 +192,7 @@ describe('generateIdentityKeyPair', () => {
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          excludeFromIndexes: expect.not.arrayContaining<keyof DatastoreIdentityKeyEntity>(['key']),
+          excludeFromIndexes: expect.not.arrayContaining<keyof IdentityKeyEntity>(['key']),
         }),
       );
     });
@@ -207,7 +218,7 @@ describe('generateIdentityKeyPair', () => {
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          excludeFromIndexes: expect.arrayContaining<keyof DatastoreIdentityKeyEntity>(['key']),
+          excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['key']),
         }),
       );
     });
@@ -222,7 +233,7 @@ describe('generateIdentityKeyPair', () => {
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          key: expect.objectContaining({ kind: 'identity_keys' }),
+          key: expect.objectContaining({ kind: DatastoreKinds.IDENTITY_KEYS }),
         }),
       );
     });
@@ -248,7 +259,7 @@ describe('generateIdentityKeyPair', () => {
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining<Partial<DatastoreIdentityKeyEntity>>({
+          data: expect.objectContaining<Partial<IdentityKeyEntity>>({
             key: KMS_CONFIG.identityKeyId,
           }),
         }),
@@ -268,10 +279,10 @@ describe('generateIdentityKeyPair', () => {
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining<Partial<DatastoreIdentityKeyEntity>>({
+          data: expect.objectContaining<Partial<IdentityKeyEntity>>({
             version: kmsKeyVersion,
           }),
-          excludeFromIndexes: expect.arrayContaining<keyof DatastoreIdentityKeyEntity>(['version']),
+          excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['version']),
         }),
       );
     });
@@ -330,7 +341,7 @@ describe('generateIdentityKeyPair', () => {
   }
 
   function makeDatastoreClient(
-    existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
+    existingIdKey: IdentityKeyEntity | Error | null = {
       key: KMS_CONFIG.identityKeyId,
       version: '1',
     },
@@ -351,7 +362,11 @@ describe('generateIdentityKeyPair', () => {
 
 describe('retrieveIdentityKey', () => {
   test('Null should be returned if key is not found on Datastore', async () => {
-    const store = new GCPPrivateKeyStore(makeKmsClient(), makeDatastoreClient(null), KMS_CONFIG);
+    const store = new GCPPrivateKeyStore(
+      makeKmsClientWithMockProject(),
+      makeDatastoreClient(null),
+      KMS_CONFIG,
+    );
 
     await expect(store.retrieveIdentityKey('non-existing')).resolves.toBeNull();
   });
@@ -359,7 +374,7 @@ describe('retrieveIdentityKey', () => {
   test('Datastore lookup error should be wrapped', async () => {
     const datastoreError = new Error('the planets were not aligned');
     const store = new GCPPrivateKeyStore(
-      makeKmsClient(),
+      makeKmsClientWithMockProject(),
       makeDatastoreClient(datastoreError),
       KMS_CONFIG,
     );
@@ -376,7 +391,7 @@ describe('retrieveIdentityKey', () => {
 
   test('Key should be returned if found', async () => {
     const datastoreClient = makeDatastoreClient();
-    const kmsClient = makeKmsClient();
+    const kmsClient = makeKmsClientWithMockProject();
     const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, KMS_CONFIG);
     const privateAddress = '0deadbeef';
 
@@ -391,13 +406,13 @@ describe('retrieveIdentityKey', () => {
     );
     expect(privateKey?.kmsKeyVersionPath).toEqual(kmsKeyVersionPath);
     expect(datastoreClient.get).toHaveBeenCalledWith(
-      datastoreClient.key(['identity_keys', privateAddress]),
+      datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]),
     );
   });
 
   test('Stored key name should override that of configuration', async () => {
     const kmsKey = `not-${KMS_CONFIG.identityKeyId}`;
-    const kmsClient = makeKmsClient();
+    const kmsClient = makeKmsClientWithMockProject();
     const store = new GCPPrivateKeyStore(
       kmsClient,
       makeDatastoreClient({
@@ -414,14 +429,8 @@ describe('retrieveIdentityKey', () => {
     );
   });
 
-  function makeKmsClient(): KeyManagementServiceClient {
-    const kmsClient = new KeyManagementServiceClient();
-    jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);
-    return kmsClient;
-  }
-
   function makeDatastoreClient(
-    existingIdKey: DatastoreIdentityKeyEntity | Error | null = {
+    existingIdKey: IdentityKeyEntity | Error | null = {
       key: KMS_CONFIG.identityKeyId,
       version: '1',
     },
@@ -452,3 +461,186 @@ describe('saveIdentityKey', () => {
     );
   });
 });
+
+describe('saveSessionKeySerialized', () => {
+  const peerPrivateAddress = '0deadbeef';
+
+  let sessionKeyPair: SessionKeyPair;
+  beforeAll(async () => {
+    sessionKeyPair = await SessionKeyPair.generate();
+  });
+
+  test('Document should be saved to session keys collection', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: expect.objectContaining({ kind: 'session_keys' }),
+      }),
+    );
+  });
+
+  test('Document name should be session key id', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: expect.objectContaining({ name: sessionKeyPair.sessionKey.keyId.toString('hex') }),
+      }),
+    );
+  });
+
+  test('Peer private address should be stored (but not indexed) if key is bound', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+    await store.saveBoundSessionKey(
+      sessionKeyPair.privateKey,
+      sessionKeyPair.sessionKey.keyId,
+      peerPrivateAddress,
+    );
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining<Partial<SessionKeyEntity>>({ peerPrivateAddress }),
+        excludeFromIndexes: expect.arrayContaining<keyof SessionKeyEntity>(['peerPrivateAddress']),
+      }),
+    );
+  });
+
+  test('Peer private address should not be stored if key is unbound', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining<Partial<SessionKeyEntity>>({
+          peerPrivateAddress: undefined,
+        }),
+      }),
+    );
+  });
+
+  test('Private key should be stored encrypted', async () => {
+    const privateKeyCiphertext = Buffer.from('encrypted real hard');
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(
+      makeKMSClient(privateKeyCiphertext),
+      datastoreClient,
+      KMS_CONFIG,
+    );
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining<Partial<SessionKeyEntity>>({ privateKeyCiphertext }),
+      }),
+    );
+  });
+
+  test('Private key field should not be indexed', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excludeFromIndexes: expect.arrayContaining<keyof SessionKeyEntity>([
+          'privateKeyCiphertext',
+        ]),
+      }),
+    );
+  });
+
+  test('Creation date should be stored', async () => {
+    const datastoreClient = makeDatastoreClient();
+    const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+    const beforeDate = new Date();
+
+    await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+    const afterDate = new Date();
+    expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining<Partial<SessionKeyEntity>>({
+          creationDate: expect.toSatisfy((date) => beforeDate <= date && date <= afterDate),
+        }),
+      }),
+    );
+  });
+
+  describe('KMS encryption', () => {
+    test('Specified KMS key should be used', async () => {
+      const kmsClient = makeKMSClient();
+      const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+      expect(kmsClient.encrypt).toHaveBeenCalledWith(
+        expect.objectContaining({ name: kmsSessionKeyPath }),
+        expect.anything(),
+      );
+    });
+
+    test('Plaintext should be session key serialized', async () => {
+      const kmsClient = makeKMSClient();
+      const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+      expect(kmsClient.encrypt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plaintext: Buffer.from(await derSerializePrivateKey(sessionKeyPair.privateKey)),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('Request should time out after 500ms', async () => {
+      const kmsClient = makeKMSClient();
+      const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+      expect(kmsClient.encrypt).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ timeout: 500 }),
+      );
+    });
+  });
+
+  function makeKMSClient(
+    ciphertextOrError: Buffer | Error = Buffer.from([]),
+  ): KeyManagementServiceClient {
+    const kmsClient = makeKmsClientWithMockProject();
+    jest.spyOn(kmsClient, 'encrypt').mockImplementation(() => {
+      if (ciphertextOrError instanceof Error) {
+        throw ciphertextOrError;
+      }
+      return [{ ciphertext: ciphertextOrError }];
+    });
+    return kmsClient;
+  }
+
+  function makeDatastoreClient(): Datastore {
+    const datastore = new Datastore();
+    jest.spyOn(datastore, 'insert').mockImplementation(() => undefined);
+    return datastore;
+  }
+});
+
+function makeKmsClientWithMockProject(): KeyManagementServiceClient {
+  const kmsClient = new KeyManagementServiceClient();
+  jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);
+  return kmsClient;
+}

@@ -9,7 +9,8 @@ import {
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
 
-import { DatastoreIdentityKeyEntity } from './DatastoreIdentityKeyEntity';
+import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
+import { DatastoreKinds } from './DatastoreKinds';
 import { GcpKmsError } from './GcpKmsError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { retrieveKMSPublicKey } from './kmsUtils';
@@ -20,8 +21,6 @@ export interface KMSConfig {
   readonly identityKeyId: string;
   readonly sessionKeyId: string;
 }
-
-const ID_KEY_DATASTORE_KIND = 'identity_keys';
 
 export class GCPPrivateKeyStore extends PrivateKeyStore {
   constructor(
@@ -63,8 +62,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   }
 
   public async retrieveIdentityKey(privateAddress: string): Promise<GcpKmsRsaPssPrivateKey | null> {
-    const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
-    let keyDocument: DatastoreIdentityKeyEntity | undefined;
+    const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
+    let keyDocument: IdentityKeyEntity | undefined;
     try {
       const [entity] = await this.datastoreClient.get(datastoreKey);
       keyDocument = entity;
@@ -81,7 +80,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       await this.getGCPProjectId(),
       this.kmsConfig.location,
       this.kmsConfig.keyRing,
-      keyDocument.key, // Ignore KMS key in the constructor to allow migrations within key ring
+      keyDocument.key, // Ignore the KMS key in the constructor
       keyDocument.version,
     );
     return new GcpKmsRsaPssPrivateKey(kmsKeyPath);
@@ -96,7 +95,17 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     keySerialized: Buffer,
     peerPrivateAddress?: string,
   ): Promise<void> {
-    throw new Error('implement ' + keyId + keySerialized + peerPrivateAddress);
+    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
+    const data: SessionKeyEntity = {
+      creationDate: new Date(),
+      peerPrivateAddress,
+      privateKeyCiphertext: await this.encryptSessionPrivateKey(keySerialized),
+    };
+    await this.datastoreClient.insert({
+      data,
+      excludeFromIndexes: ['peerPrivateAddress', 'privateKeyCiphertext'],
+      key: datastoreKey,
+    });
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
@@ -150,7 +159,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
 
   private async isInitialKeyVersionLinked(): Promise<boolean> {
     const query = this.datastoreClient
-      .createQuery(ID_KEY_DATASTORE_KIND)
+      .createQuery(DatastoreKinds.IDENTITY_KEYS)
       .filter('key', '=', this.kmsConfig.identityKeyId)
       .limit(1);
     try {
@@ -171,8 +180,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     privateAddress: string,
     isInitialKeyVersionLinked: boolean,
   ): Promise<void> {
-    const datastoreKey = this.datastoreClient.key([ID_KEY_DATASTORE_KIND, privateAddress]);
-    const identityKeyEntity: DatastoreIdentityKeyEntity = {
+    const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
+    const identityKeyEntity: IdentityKeyEntity = {
       key: this.kmsConfig.identityKeyId,
       version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
         kmsKeyVersionPath,
@@ -183,6 +192,23 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
       key: datastoreKey,
     });
+  }
+
+  //endregion
+  //region Session key handling utilities
+
+  private async encryptSessionPrivateKey(keySerialized: Buffer): Promise<Buffer> {
+    const kmsKeyName = this.kmsClient.cryptoKeyPath(
+      await this.getGCPProjectId(),
+      this.kmsConfig.location,
+      this.kmsConfig.keyRing,
+      this.kmsConfig.sessionKeyId,
+    );
+    const [encryptResponse] = await this.kmsClient.encrypt(
+      { name: kmsKeyName, plaintext: keySerialized },
+      { timeout: 500 },
+    );
+    return encryptResponse.ciphertext as Buffer;
   }
 
   //endregion
