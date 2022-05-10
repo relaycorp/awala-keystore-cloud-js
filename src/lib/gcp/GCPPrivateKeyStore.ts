@@ -222,7 +222,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
     }
     const ciphertext = encryptResponse.ciphertext as Buffer;
-    if (calculateCRC32C(ciphertext) !== encryptResponse.ciphertextCrc32c?.value) {
+    if (calculateCRC32C(ciphertext) !== encryptResponse.ciphertextCrc32c!.value) {
       throw new GCPKeystoreError('Ciphertext CRC32C checksum does not match that from KMS');
     }
     return ciphertext;
