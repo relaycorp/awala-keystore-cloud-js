@@ -3,7 +3,7 @@ import { CryptoKey } from 'webcrypto-core';
 
 import { mockSpy } from '../../testUtils/jest';
 import { bufferToArrayBuffer } from '../utils/buffer';
-import { GcpKmsError } from './GcpKmsError';
+import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 import * as kmsUtils from './kmsUtils';
@@ -25,7 +25,7 @@ describe('onGenerateKey', () => {
     const provider = new GcpKmsRsaPssProvider(null as any);
 
     await expect(provider.onGenerateKey()).rejects.toThrowWithMessage(
-      GcpKmsError,
+      GCPKeystoreError,
       'Key generation is unsupported',
     );
   });
@@ -36,7 +36,7 @@ describe('onImportKey', () => {
     const provider = new GcpKmsRsaPssProvider(null as any);
 
     await expect(provider.onImportKey()).rejects.toThrowWithMessage(
-      GcpKmsError,
+      GCPKeystoreError,
       'Key import is unsupported',
     );
   });
@@ -51,7 +51,7 @@ describe('onSign', () => {
     const invalidKey = CryptoKey.create({ name: 'RSA-PSS' }, 'private', true, ['sign']);
 
     await expect(provider.sign(ALGORITHM, invalidKey, PLAINTEXT)).rejects.toThrowWithMessage(
-      GcpKmsError,
+      GCPKeystoreError,
       `Cannot sign with key of unsupported type (${invalidKey.constructor.name})`,
     );
 
@@ -120,7 +120,7 @@ describe('onSign', () => {
       const algorithm = { ...ALGORITHM, saltLength };
 
       await expect(provider.sign(algorithm, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
-        GcpKmsError,
+        GCPKeystoreError,
         `Unsupported salt length of ${saltLength} octets`,
       );
     });
@@ -141,7 +141,7 @@ describe('onVerify', () => {
     const provider = new GcpKmsRsaPssProvider(null as any);
 
     await expect(provider.onVerify()).rejects.toThrowWithMessage(
-      GcpKmsError,
+      GCPKeystoreError,
       'Signature verification is unsupported',
     );
   });
@@ -159,7 +159,7 @@ describe('onExportKey', () => {
       const provider = new GcpKmsRsaPssProvider(null as any);
 
       await expect(provider.onExportKey(format, PRIVATE_KEY)).rejects.toThrowWithMessage(
-        GcpKmsError,
+        GCPKeystoreError,
         'Private key cannot be exported',
       );
 
@@ -183,7 +183,7 @@ describe('onExportKey', () => {
     const invalidKey = new CryptoKey();
 
     await expect(provider.onExportKey('spki', invalidKey)).rejects.toThrowWithMessage(
-      GcpKmsError,
+      GCPKeystoreError,
       'Key is not managed by KMS',
     );
 

@@ -1,7 +1,7 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 
 import { catchPromiseRejection } from '../../testUtils/promises';
-import { GcpKmsError } from './GcpKmsError';
+import { GCPKeystoreError } from './GCPKeystoreError';
 import { retrieveKMSPublicKey } from './kmsUtils';
 
 describe('retrieveKMSPublicKey', () => {
@@ -56,7 +56,7 @@ describe('retrieveKMSPublicKey', () => {
 
     const error = await catchPromiseRejection(
       retrieveKMSPublicKey(KMS_KEY_VERSION_NAME, kmsClient),
-      GcpKmsError,
+      GCPKeystoreError,
     );
 
     expect(error.message).toStartWith(`Failed to retrieve public key for ${KMS_KEY_VERSION_NAME}`);

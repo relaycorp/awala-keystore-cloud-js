@@ -11,8 +11,9 @@ import {
 
 import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
 import { DatastoreKinds } from './DatastoreKinds';
-import { GcpKmsError } from './GcpKmsError';
+import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
+import { wrapGCPCallError } from './gcpUtils';
 import { retrieveKMSPublicKey } from './kmsUtils';
 
 export interface KMSConfig {
@@ -73,7 +74,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       const [entity] = await this.datastoreClient.get(datastoreKey);
       keyDocument = entity;
     } catch (err) {
-      throw new GcpKmsError(
+      throw new GCPKeystoreError(
         err as Error,
         `Failed to look up KMS key version for ${privateAddress}`,
       );
@@ -92,7 +93,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   }
 
   protected async saveIdentityKey(): Promise<void> {
-    throw new GcpKmsError('Method is not supported');
+    throw new GCPKeystoreError('Method is not supported');
   }
 
   protected async saveSessionKeySerialized(
@@ -114,7 +115,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
-    throw new Error('implement ' + keyId);
+    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
+    const [entity] = await this.datastoreClient.get(datastoreKey);
+    if (!entity) {
+      return null;
+    }
+    const keyData: SessionKeyEntity = entity;
+    const keySerialized = await this.decryptSessionPrivateKey(keyData.privateKeyCiphertext);
+    return { keySerialized, peerPrivateAddress: keyData.peerPrivateAddress };
   }
 
   private async validateExistingSigningKey(
@@ -124,17 +132,17 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     const [kmsKey] = await this.kmsClient.getCryptoKey({ name: kmsKeyName });
     const keyAlgorithm = kmsKey.versionTemplate!.algorithm as string;
     if (!keyAlgorithm.startsWith('RSA_SIGN_PSS_')) {
-      throw new GcpKmsError(`Key ${kmsKeyName} is not an RSA-PSS key`);
+      throw new GCPKeystoreError(`Key ${kmsKeyName} is not an RSA-PSS key`);
     }
 
     const requiredRSAModulus = options.modulus ?? 2048;
     if (!keyAlgorithm.includes(`_${requiredRSAModulus}_`)) {
-      throw new GcpKmsError(`Key ${kmsKeyName} does not use modulus ${requiredRSAModulus}`);
+      throw new GCPKeystoreError(`Key ${kmsKeyName} does not use modulus ${requiredRSAModulus}`);
     }
 
     const requiredHashingAlgorithm = options.hashingAlgorithm ?? 'SHA-256';
     if (!keyAlgorithm.endsWith(requiredHashingAlgorithm.replace('-', ''))) {
-      throw new GcpKmsError(`Key ${kmsKeyName} does not use ${requiredHashingAlgorithm}`);
+      throw new GCPKeystoreError(`Key ${kmsKeyName} does not use ${requiredHashingAlgorithm}`);
     }
   }
 
@@ -203,17 +211,33 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   //region Session key handling utilities
 
   private async encryptSessionPrivateKey(keySerialized: Buffer): Promise<Buffer> {
-    const kmsKeyName = this.kmsClient.cryptoKeyPath(
-      await this.getGCPProjectId(),
-      this.kmsConfig.location,
-      this.kmsConfig.keyRing,
-      this.kmsConfig.sessionEncryptionKeyId,
-    );
+    const kmsKeyName = await this.getKMSKeyForSessionKey();
     const [encryptResponse] = await this.kmsClient.encrypt(
       { name: kmsKeyName, plaintext: keySerialized },
       { timeout: 500 },
     );
     return encryptResponse.ciphertext as Buffer;
+  }
+
+  private async decryptSessionPrivateKey(privateKeyCiphertext: Buffer): Promise<Buffer> {
+    const kmsKeyName = await this.getKMSKeyForSessionKey();
+    const [decryptionResponse] = await wrapGCPCallError(
+      this.kmsClient.decrypt(
+        { name: kmsKeyName, ciphertext: privateKeyCiphertext },
+        { timeout: 500 },
+      ),
+      'Failed to decrypt with KMS',
+    );
+    return decryptionResponse.plaintext as Buffer;
+  }
+
+  private async getKMSKeyForSessionKey(): Promise<string> {
+    return this.kmsClient.cryptoKeyPath(
+      await this.getGCPProjectId(),
+      this.kmsConfig.location,
+      this.kmsConfig.keyRing,
+      this.kmsConfig.sessionEncryptionKeyId,
+    );
   }
 
   //endregion

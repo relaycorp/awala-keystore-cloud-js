@@ -1,7 +1,7 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 
-import { GcpKmsError } from './GcpKmsError';
+import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { retrieveKMSPublicKey } from './kmsUtils';
 
@@ -20,19 +20,19 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
   }
 
   public async onGenerateKey(): Promise<CryptoKeyPair> {
-    throw new GcpKmsError('Key generation is unsupported');
+    throw new GCPKeystoreError('Key generation is unsupported');
   }
 
   public async onImportKey(): Promise<CryptoKey> {
-    throw new GcpKmsError('Key import is unsupported');
+    throw new GCPKeystoreError('Key import is unsupported');
   }
 
   public async onExportKey(format: KeyFormat, key: CryptoKey): Promise<ArrayBuffer> {
     if (format !== 'spki') {
-      throw new GcpKmsError('Private key cannot be exported');
+      throw new GCPKeystoreError('Private key cannot be exported');
     }
     if (!(key instanceof GcpKmsRsaPssPrivateKey)) {
-      throw new GcpKmsError('Key is not managed by KMS');
+      throw new GCPKeystoreError('Key is not managed by KMS');
     }
     return retrieveKMSPublicKey(key.kmsKeyVersionPath, this.kmsClient);
   }
@@ -43,11 +43,13 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     data: ArrayBuffer,
   ): Promise<ArrayBuffer> {
     if (!(key instanceof GcpKmsRsaPssPrivateKey)) {
-      throw new GcpKmsError(`Cannot sign with key of unsupported type (${key.constructor.name})`);
+      throw new GCPKeystoreError(
+        `Cannot sign with key of unsupported type (${key.constructor.name})`,
+      );
     }
 
     if (!SUPPORTED_SALT_LENGTHS.includes(algorithm.saltLength)) {
-      throw new GcpKmsError(`Unsupported salt length of ${algorithm.saltLength} octets`);
+      throw new GCPKeystoreError(`Unsupported salt length of ${algorithm.saltLength} octets`);
     }
 
     const [response] = await this.kmsClient.asymmetricSign(
@@ -62,6 +64,6 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
   }
 
   public async onVerify(): Promise<boolean> {
-    throw new GcpKmsError('Signature verification is unsupported');
+    throw new GCPKeystoreError('Signature verification is unsupported');
   }
 }

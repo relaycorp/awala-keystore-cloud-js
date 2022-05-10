@@ -1,7 +1,7 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 
 import { bufferToArrayBuffer } from '../utils/buffer';
-import { GcpKmsError } from './GcpKmsError';
+import { GCPKeystoreError } from './GCPKeystoreError';
 
 export async function retrieveKMSPublicKey(
   kmsKeyVersionName: string,
@@ -18,7 +18,10 @@ export async function retrieveKMSPublicKey(
     );
     publicKeyPEM = exportResponse.pem!;
   } catch (err) {
-    throw new GcpKmsError(err as Error, `Failed to retrieve public key for ${kmsKeyVersionName}`);
+    throw new GCPKeystoreError(
+      err as Error,
+      `Failed to retrieve public key for ${kmsKeyVersionName}`,
+    );
   }
 
   const publicKeyDer = pemToDer(publicKeyPEM);
