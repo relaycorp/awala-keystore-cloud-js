@@ -11,6 +11,7 @@ import {
   SessionKeyPair,
   UnknownKeyError,
 } from '@relaycorp/relaynet-core';
+import { calculate as calculateCRC32C } from 'fast-crc32c';
 
 import { mockSpy } from '../../testUtils/jest';
 import { catchPromiseRejection } from '../../testUtils/promises';
@@ -547,7 +548,7 @@ describe('Session keys', () => {
       const privateKeyCiphertext = Buffer.from('encrypted real hard');
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(
-        makeKMSClient(privateKeyCiphertext),
+        makeKMSClient({ ciphertext: privateKeyCiphertext }),
         datastoreClient,
         KMS_CONFIG,
       );
@@ -641,17 +642,92 @@ describe('Session keys', () => {
           expect.objectContaining({ timeout: 500 }),
         );
       });
+
+      test('Plaintext CRC32C checksum should be passed to server', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.saveUnboundSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+        );
+
+        const privateKeySerialized = await derSerializePrivateKey(sessionKeyPair.privateKey);
+        expect(kmsClient.encrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            plaintextCrc32c: { value: calculateCRC32C(privateKeySerialized) },
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('Server should verify CRC32 checksum from client', async () => {
+        const datastoreClient = makeDatastoreClient();
+        const store = new GCPPrivateKeyStore(
+          makeKMSClient({
+            ciphertext: Buffer.from([]),
+            verifiedPlaintextCrc32c: false,
+          }),
+          datastoreClient,
+          KMS_CONFIG,
+        );
+
+        const error = await catchPromiseRejection(
+          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.cause()?.message).toEqual('KMS failed to verify plaintext CRC32C checksum');
+      });
+
+      test('Client should verify CRC32 checksum from server', async () => {
+        const datastoreClient = makeDatastoreClient();
+        const ciphertext = Buffer.from('the private key');
+        const store = new GCPPrivateKeyStore(
+          makeKMSClient({
+            ciphertext,
+            ciphertextCrc32cValue: calculateCRC32C(ciphertext) + 1,
+          }),
+          datastoreClient,
+          KMS_CONFIG,
+        );
+
+        const error = await catchPromiseRejection(
+          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.cause()?.message).toEqual(
+          'Ciphertext CRC32C checksum does not match that from KMS',
+        );
+      });
     });
 
+    interface KMSEncryptResponse {
+      readonly ciphertext: Buffer;
+      readonly verifiedPlaintextCrc32c?: boolean;
+      readonly ciphertextCrc32cValue?: number;
+    }
+
     function makeKMSClient(
-      ciphertextOrError: Buffer | Error = Buffer.from([]),
+      responseOrError: KMSEncryptResponse | Error = { ciphertext: Buffer.from([]) },
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
       jest.spyOn(kmsClient, 'encrypt').mockImplementation(() => {
-        if (ciphertextOrError instanceof Error) {
-          throw ciphertextOrError;
+        if (responseOrError instanceof Error) {
+          throw responseOrError;
         }
-        return [{ ciphertext: ciphertextOrError }];
+        const ciphertextCrc32c = {
+          value:
+            responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(responseOrError.ciphertext),
+        };
+        return [
+          {
+            ciphertext: responseOrError.ciphertext,
+            ciphertextCrc32c,
+            verifiedPlaintextCrc32c: responseOrError.verifiedPlaintextCrc32c ?? true,
+          },
+        ];
       });
       return kmsClient;
     }
@@ -805,6 +881,10 @@ describe('Session keys', () => {
         expect((error.cause() as GCPKeystoreError).cause()).toEqual(kmsError);
       });
     });
+
+    test.todo('Server should verify CRC32 checksum from client');
+
+    test.todo('Client should verify CRC32 checksum from server');
 
     function makeKMSClient(
       privateKeyOrError: CryptoKey | Error = sessionKeyPair.privateKey,

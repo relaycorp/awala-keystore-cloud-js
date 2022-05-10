@@ -8,6 +8,7 @@ import {
   RSAKeyGenOptions,
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
+import { calculate as calculateCRC32C } from 'fast-crc32c';
 
 import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
 import { DatastoreKinds } from './DatastoreKinds';
@@ -212,11 +213,19 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
 
   private async encryptSessionPrivateKey(keySerialized: Buffer): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
+    const plaintextCRC32C = calculateCRC32C(keySerialized);
     const [encryptResponse] = await this.kmsClient.encrypt(
-      { name: kmsKeyName, plaintext: keySerialized },
+      { name: kmsKeyName, plaintext: keySerialized, plaintextCrc32c: { value: plaintextCRC32C } },
       { timeout: 500 },
     );
-    return encryptResponse.ciphertext as Buffer;
+    if (!encryptResponse.verifiedPlaintextCrc32c) {
+      throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
+    }
+    const ciphertext = encryptResponse.ciphertext as Buffer;
+    if (calculateCRC32C(ciphertext) !== encryptResponse.ciphertextCrc32c?.value) {
+      throw new GCPKeystoreError('Ciphertext CRC32C checksum does not match that from KMS');
+    }
+    return ciphertext;
   }
 
   private async decryptSessionPrivateKey(privateKeyCiphertext: Buffer): Promise<Buffer> {
