@@ -851,6 +851,25 @@ describe('Session keys', () => {
         );
       });
 
+      test('Ciphertext CRC32C checksum should be passed to server', async () => {
+        const privateKeyCiphertext = Buffer.from('the ciphertext');
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(
+          kmsClient,
+          makeDatastoreClient({ creationDate: new Date(), privateKeyCiphertext }),
+          KMS_CONFIG,
+        );
+
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+
+        expect(kmsClient.decrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ciphertextCrc32c: { value: calculateCRC32C(privateKeyCiphertext) },
+          }),
+          expect.anything(),
+        );
+      });
+
       test('Request should time out after 500ms', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
@@ -860,6 +879,20 @@ describe('Session keys', () => {
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.anything(),
           expect.objectContaining({ timeout: 500 }),
+        );
+      });
+
+      test('Client should verify CRC32 checksum from server', async () => {
+        const kmsClient = makeKMSClient({ plaintextCrc32cValue: 42 });
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        const error = await catchPromiseRejection(
+          store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.cause()?.message).toEqual(
+          'Plaintext CRC32C checksum does not match that from KMS',
         );
       });
 
@@ -882,20 +915,25 @@ describe('Session keys', () => {
       });
     });
 
-    test.todo('Server should verify CRC32 checksum from client');
-
-    test.todo('Client should verify CRC32 checksum from server');
+    interface KMSDecryptResponse {
+      readonly plaintext?: Buffer;
+      readonly plaintextCrc32cValue?: number;
+    }
 
     function makeKMSClient(
-      privateKeyOrError: CryptoKey | Error = sessionKeyPair.privateKey,
+      responseOrError: KMSDecryptResponse | Error = {},
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
       jest.spyOn(kmsClient, 'decrypt').mockImplementation(async () => {
-        if (privateKeyOrError instanceof Error) {
-          throw privateKeyOrError;
+        if (responseOrError instanceof Error) {
+          throw responseOrError;
         }
-        const plaintext = await derSerializePrivateKey(privateKeyOrError);
-        return [{ plaintext }];
+        const plaintext =
+          responseOrError.plaintext ?? (await derSerializePrivateKey(sessionKeyPair.privateKey));
+        const plaintextCrc32c = {
+          value: responseOrError.plaintextCrc32cValue ?? calculateCRC32C(plaintext),
+        };
+        return [{ plaintext, plaintextCrc32c }];
       });
       return kmsClient;
     }

@@ -230,14 +230,23 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
 
   private async decryptSessionPrivateKey(privateKeyCiphertext: Buffer): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
+    const ciphertextCRC32C = calculateCRC32C(privateKeyCiphertext);
     const [decryptionResponse] = await wrapGCPCallError(
       this.kmsClient.decrypt(
-        { name: kmsKeyName, ciphertext: privateKeyCiphertext },
+        {
+          ciphertext: privateKeyCiphertext,
+          ciphertextCrc32c: { value: ciphertextCRC32C },
+          name: kmsKeyName,
+        },
         { timeout: 500 },
       ),
       'Failed to decrypt with KMS',
     );
-    return decryptionResponse.plaintext as Buffer;
+    const plaintext = decryptionResponse.plaintext as Buffer;
+    if (calculateCRC32C(plaintext) !== decryptionResponse.plaintextCrc32c!.value) {
+      throw new GCPKeystoreError('Plaintext CRC32C checksum does not match that from KMS');
+    }
+    return plaintext;
   }
 
   private async getKMSKeyForSessionKey(): Promise<string> {
