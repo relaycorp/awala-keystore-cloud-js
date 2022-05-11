@@ -37,7 +37,7 @@ beforeAll(async () => {
     },
     cryptoKeyId: `${keyIdPrefix}-id`,
     parent: keyRingName,
-    // skipInitialVersionCreation: true, // TODO: REINSTATE
+    skipInitialVersionCreation: true,
   });
   identityKeyName = createIdKeyResponse.name!; // Only set once key is actually created
 

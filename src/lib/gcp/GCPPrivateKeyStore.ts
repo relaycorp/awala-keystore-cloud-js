@@ -49,11 +49,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     );
     await this.validateExistingSigningKey(kmsKeyName, options);
 
-    const isInitialKeyVersionLinked = await this.isInitialKeyVersionLinked();
-    const kmsKeyVersionPath = await this.getOrCreateSigningKMSKeyVersion(
-      kmsKeyName,
-      isInitialKeyVersionLinked,
-    );
+    const kmsKeyVersionPath = await this.createSigningKMSKeyVersion(kmsKeyName);
 
     const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath);
     const publicKeySerialized = await retrieveKMSPublicKey(
@@ -63,7 +59,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     const publicKey = await derDeserializeRSAPublicKey(publicKeySerialized);
     const privateAddress = await getPrivateAddressFromIdentityKey(publicKey);
 
-    await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress, isInitialKeyVersionLinked);
+    await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress);
 
     return { privateAddress, privateKey, publicKey };
   }
@@ -131,6 +127,8 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     return { keySerialized, peerPrivateAddress: keyData.peerPrivateAddress };
   }
 
+  //region Identity key utilities
+
   private async validateExistingSigningKey(
     kmsKeyName: string,
     options: Partial<RSAKeyGenOptions>,
@@ -152,53 +150,18 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     }
   }
 
-  private async getOrCreateSigningKMSKeyVersion(
-    kmsKeyName: string,
-    isInitialKeyVersionLinked: boolean,
-  ): Promise<string> {
-    if (isInitialKeyVersionLinked) {
-      // Version 1 of the KMS key was already linked, so create a new version.
-      const [kmsVersionResponse] = await wrapGCPCallError(
-        this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }, { timeout: 500 }),
-        'Failed to create key version',
-      );
-      return kmsVersionResponse.name!;
-    }
-
-    // Version 1 of the KMS key is not linked so let's assign it by registering it on Datastore
-    return this.kmsClient.cryptoKeyVersionPath(
-      await this.getGCPProjectId(),
-      this.kmsConfig.location,
-      this.kmsConfig.keyRing,
-      this.kmsConfig.identityKeyId,
-      '1', // TODO: GET LATEST VERSION INSTEAD
+  private async createSigningKMSKeyVersion(kmsKeyName: string): Promise<string> {
+    // Version 1 of the KMS key was already linked, so create a new version.
+    const [kmsVersionResponse] = await wrapGCPCallError(
+      this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }, { timeout: 500 }),
+      'Failed to create key version',
     );
-  }
-
-  //region Identity key linking
-
-  private async isInitialKeyVersionLinked(): Promise<boolean> {
-    const query = this.datastoreClient
-      .createQuery(DatastoreKinds.IDENTITY_KEYS)
-      .filter('key', '=', this.kmsConfig.identityKeyId)
-      .limit(1);
-    try {
-      const [entities] = await this.datastoreClient.runQuery(query);
-      return !!entities.length;
-    } catch (err) {
-      if ((err as any).code === 9) {
-        // The index doesn't exist (most likely because the collection doesn't exist)
-        return false;
-      }
-
-      throw err;
-    }
+    return kmsVersionResponse.name!;
   }
 
   private async linkKMSKeyVersion(
     kmsKeyVersionPath: string,
     privateAddress: string,
-    isInitialKeyVersionLinked: boolean,
   ): Promise<void> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
     const identityKeyEntity: IdentityKeyEntity = {
@@ -211,7 +174,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       this.datastoreClient.save(
         {
           data: identityKeyEntity,
-          excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
+          excludeFromIndexes: ['version', 'key'],
           key: datastoreKey,
         },
         { timeout: 500 },
