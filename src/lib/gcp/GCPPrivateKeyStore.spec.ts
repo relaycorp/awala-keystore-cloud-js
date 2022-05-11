@@ -628,21 +628,6 @@ describe('Session keys', () => {
         );
       });
 
-      test('Request should time out after 500ms', async () => {
-        const kmsClient = makeKMSClient();
-        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
-
-        await store.saveUnboundSessionKey(
-          sessionKeyPair.privateKey,
-          sessionKeyPair.sessionKey.keyId,
-        );
-
-        expect(kmsClient.encrypt).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({ timeout: 500 }),
-        );
-      });
-
       test('Plaintext CRC32C checksum should be passed to server', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
@@ -699,6 +684,21 @@ describe('Session keys', () => {
 
         expect(error.cause()?.message).toEqual(
           'Ciphertext CRC32C checksum does not match that from KMS',
+        );
+      });
+
+      test('Request should time out after 500ms', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.saveUnboundSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+        );
+
+        expect(kmsClient.encrypt).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ timeout: 500 }),
         );
       });
 
@@ -888,18 +888,6 @@ describe('Session keys', () => {
         );
       });
 
-      test('Request should time out after 500ms', async () => {
-        const kmsClient = makeKMSClient();
-        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
-
-        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
-
-        expect(kmsClient.decrypt).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({ timeout: 500 }),
-        );
-      });
-
       test('Client should verify CRC32 checksum from server', async () => {
         const kmsClient = makeKMSClient({ plaintextCrc32cValue: 42 });
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
@@ -911,6 +899,18 @@ describe('Session keys', () => {
 
         expect(error.cause()?.message).toEqual(
           'Plaintext CRC32C checksum does not match that from KMS',
+        );
+      });
+
+      test('Request should time out after 500ms', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+
+        expect(kmsClient.decrypt).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ timeout: 500 }),
         );
       });
 
