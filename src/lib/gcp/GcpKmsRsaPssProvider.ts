@@ -1,4 +1,5 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 
 import { GCPKeystoreError } from './GCPKeystoreError';
@@ -52,14 +53,18 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
       throw new GCPKeystoreError(`Unsupported salt length of ${algorithm.saltLength} octets`);
     }
 
+    const dataCrc32c = { value: calculateCRC32C(Buffer.from(data)) };
     const [response] = await this.kmsClient.asymmetricSign(
-      {
-        data: new Uint8Array(data),
-        name: key.kmsKeyVersionPath,
-      },
+      { data: new Uint8Array(data), dataCrc32c, name: key.kmsKeyVersionPath },
       { timeout: 500 },
     );
 
+    if (!response.verifiedDataCrc32c) {
+      throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
+    }
+    if (calculateCRC32C(response.signature as Buffer) !== response.signatureCrc32c!.value) {
+      throw new GCPKeystoreError('Signature CRC32C checksum does not match one received from KMS');
+    }
     return response.signature as Uint8Array;
   }
 

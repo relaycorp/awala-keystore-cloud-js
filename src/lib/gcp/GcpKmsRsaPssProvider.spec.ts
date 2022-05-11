@@ -1,4 +1,5 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey } from 'webcrypto-core';
 
 import { mockSpy } from '../../testUtils/jest';
@@ -44,6 +45,7 @@ describe('onImportKey', () => {
 
 describe('onSign', () => {
   const PLAINTEXT = bufferToArrayBuffer(Buffer.from('the plaintext'));
+  const SIGNATURE = Buffer.from('the signature');
 
   test('Non-KMS key should be refused', async () => {
     const kmsClient = makeKmsClient();
@@ -59,13 +61,12 @@ describe('onSign', () => {
   });
 
   test('Signature should be output', async () => {
-    const expectSignature = Buffer.from('this is the signature');
-    const kmsClient = makeKmsClient(expectSignature);
+    const kmsClient = makeKmsClient({ signature: SIGNATURE });
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
     const signature = await provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT);
 
-    expect(signature).toEqual(expectSignature);
+    expect(Buffer.from(signature)).toEqual(SIGNATURE);
   });
 
   test('Correct key path should be used', async () => {
@@ -89,6 +90,38 @@ describe('onSign', () => {
     expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
       expect.toSatisfy((req) => Buffer.from(req.data).equals(Buffer.from(PLAINTEXT))),
       expect.anything(),
+    );
+  });
+
+  test('Plaintext CRC32C checksum should be passed to server', async () => {
+    const kmsClient = makeKmsClient();
+    const provider = new GcpKmsRsaPssProvider(kmsClient);
+
+    await provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT);
+
+    expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
+      expect.objectContaining({ dataCrc32c: { value: calculateCRC32C(Buffer.from(PLAINTEXT)) } }),
+      expect.anything(),
+    );
+  });
+
+  test('Server should verify signature CRC32C checksum from the client', async () => {
+    const provider = new GcpKmsRsaPssProvider(makeKmsClient({ verifiedSignatureCRC32C: false }));
+
+    await expect(provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
+      GCPKeystoreError,
+      'KMS failed to verify plaintext CRC32C checksum',
+    );
+  });
+
+  test('Signature CRC32C checksum from the server should be verified', async () => {
+    const provider = new GcpKmsRsaPssProvider(
+      makeKmsClient({ signatureCRC32C: calculateCRC32C(SIGNATURE) - 1 }),
+    );
+
+    await expect(provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
+      GCPKeystoreError,
+      'Signature CRC32C checksum does not match one received from KMS',
     );
   });
 
@@ -126,12 +159,25 @@ describe('onSign', () => {
     });
   });
 
-  function makeKmsClient(signature: Buffer = Buffer.from([])): KeyManagementServiceClient {
+  interface KMSSignatureResponse {
+    readonly signature: Buffer;
+    readonly signatureCRC32C: number;
+    readonly verifiedSignatureCRC32C: boolean;
+  }
+
+  function makeKmsClient(
+    responseOrError: Partial<KMSSignatureResponse> = {},
+  ): KeyManagementServiceClient {
     const kmsClient = new KeyManagementServiceClient();
-    const mockResponse = { signature };
-    jest
-      .spyOn(kmsClient, 'asymmetricSign')
-      .mockImplementation(() => [mockResponse, undefined, undefined]);
+    jest.spyOn(kmsClient, 'asymmetricSign').mockImplementation(async () => {
+      const signature = responseOrError.signature ?? SIGNATURE;
+      const response = {
+        signature: new Uint8Array(signature),
+        signatureCrc32c: { value: responseOrError.signatureCRC32C ?? calculateCRC32C(signature) },
+        verifiedDataCrc32c: responseOrError.verifiedSignatureCRC32C ?? true,
+      };
+      return [response, undefined, undefined];
+    });
     return kmsClient;
   }
 });
