@@ -93,7 +93,7 @@ describe('onSign', () => {
     );
   });
 
-  test('Plaintext CRC32C checksum should be passed to server', async () => {
+  test('Plaintext CRC32C checksum should be passed to KMS', async () => {
     const kmsClient = makeKmsClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
@@ -105,7 +105,7 @@ describe('onSign', () => {
     );
   });
 
-  test('Server should verify signature CRC32C checksum from the client', async () => {
+  test('KMS should verify signature CRC32C checksum from the client', async () => {
     const provider = new GcpKmsRsaPssProvider(makeKmsClient({ verifiedSignatureCRC32C: false }));
 
     await expect(provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
@@ -114,7 +114,7 @@ describe('onSign', () => {
     );
   });
 
-  test('Signature CRC32C checksum from the server should be verified', async () => {
+  test('Signature CRC32C checksum from the KMS should be verified', async () => {
     const provider = new GcpKmsRsaPssProvider(
       makeKmsClient({ signatureCRC32C: calculateCRC32C(SIGNATURE) - 1 }),
     );
@@ -122,6 +122,16 @@ describe('onSign', () => {
     await expect(provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
       GCPKeystoreError,
       'Signature CRC32C checksum does not match one received from KMS',
+    );
+  });
+
+  test('KMS should sign with the specified key', async () => {
+    const kmsKeyVersionName = `not-${PRIVATE_KEY.kmsKeyVersionPath}`;
+    const provider = new GcpKmsRsaPssProvider(makeKmsClient({ kmsKeyVersionName }));
+
+    await expect(provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT)).rejects.toThrowWithMessage(
+      GCPKeystoreError,
+      `KMS used the wrong key version (${kmsKeyVersionName})`,
     );
   });
 
@@ -163,6 +173,7 @@ describe('onSign', () => {
     readonly signature: Buffer;
     readonly signatureCRC32C: number;
     readonly verifiedSignatureCRC32C: boolean;
+    readonly kmsKeyVersionName: string;
   }
 
   function makeKmsClient(
@@ -173,7 +184,8 @@ describe('onSign', () => {
       const signature = responseOrError.signature ?? SIGNATURE;
       const signatureCrc32c = responseOrError.signatureCRC32C ?? calculateCRC32C(signature);
       const response = {
-        signature: new Uint8Array(signature),
+        name: responseOrError.kmsKeyVersionName ?? PRIVATE_KEY.kmsKeyVersionPath,
+        signature,
         signatureCrc32c: { value: signatureCrc32c.toString() },
         verifiedDataCrc32c: responseOrError.verifiedSignatureCRC32C ?? true,
       };

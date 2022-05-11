@@ -68,6 +68,9 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
       { timeout: 500 },
     );
 
+    if (response.name !== key.kmsKeyVersionPath) {
+      throw new GCPKeystoreError(`KMS used the wrong key version (${response.name})`);
+    }
     if (!response.verifiedDataCrc32c) {
       throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
     }

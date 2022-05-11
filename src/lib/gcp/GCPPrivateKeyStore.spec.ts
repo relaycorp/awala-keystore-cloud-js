@@ -628,7 +628,7 @@ describe('Session keys', () => {
         );
       });
 
-      test('Plaintext CRC32C checksum should be passed to server', async () => {
+      test('Plaintext CRC32C checksum should be passed to KMS', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
@@ -646,14 +646,10 @@ describe('Session keys', () => {
         );
       });
 
-      test('Server should verify CRC32 checksum from client', async () => {
-        const datastoreClient = makeDatastoreClient();
+      test('KMS should verify CRC32 checksum from client', async () => {
         const store = new GCPPrivateKeyStore(
-          makeKMSClient({
-            ciphertext: Buffer.from([]),
-            verifiedPlaintextCrc32c: false,
-          }),
-          datastoreClient,
+          makeKMSClient({ verifiedPlaintextCrc32c: false }),
+          makeDatastoreClient(),
           KMS_CONFIG,
         );
 
@@ -665,15 +661,14 @@ describe('Session keys', () => {
         expect(error.cause()?.message).toEqual('KMS failed to verify plaintext CRC32C checksum');
       });
 
-      test('Client should verify CRC32 checksum from server', async () => {
-        const datastoreClient = makeDatastoreClient();
+      test('Client should verify CRC32 checksum from KMS', async () => {
         const ciphertext = Buffer.from('the private key');
         const store = new GCPPrivateKeyStore(
           makeKMSClient({
             ciphertext,
             ciphertextCrc32cValue: calculateCRC32C(ciphertext) + 1,
           }),
-          datastoreClient,
+          makeDatastoreClient(),
           KMS_CONFIG,
         );
 
@@ -685,6 +680,38 @@ describe('Session keys', () => {
         expect(error.cause()?.message).toEqual(
           'Ciphertext CRC32C checksum does not match that from KMS',
         );
+      });
+
+      test('KMS should encrypt with the specified key', async () => {
+        const kmsKeyName = 'this/is/not/even/well-formed';
+        const store = new GCPPrivateKeyStore(
+          makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
+          makeDatastoreClient(),
+          KMS_CONFIG,
+        );
+
+        const error = await catchPromiseRejection(
+          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
+      });
+
+      test('KMS should encrypt with a similarly-named key', async () => {
+        const kmsKeyName = `${kmsSessionKeyPath}-not/cryptoKeyVersions/1`;
+        const store = new GCPPrivateKeyStore(
+          makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
+          makeDatastoreClient(),
+          KMS_CONFIG,
+        );
+
+        const error = await catchPromiseRejection(
+          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
       });
 
       test('Request should time out after 500ms', async () => {
@@ -723,24 +750,29 @@ describe('Session keys', () => {
 
     interface KMSEncryptResponse {
       readonly ciphertext: Buffer;
-      readonly verifiedPlaintextCrc32c?: boolean;
-      readonly ciphertextCrc32cValue?: number;
+      readonly verifiedPlaintextCrc32c: boolean;
+      readonly ciphertextCrc32cValue: number;
+      readonly kmsKeyVersionName: string;
     }
 
     function makeKMSClient(
-      responseOrError: KMSEncryptResponse | Error = { ciphertext: Buffer.from([]) },
+      responseOrError: Partial<KMSEncryptResponse> | Error = {},
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
       jest.spyOn(kmsClient, 'encrypt').mockImplementation(async () => {
         if (responseOrError instanceof Error) {
           throw responseOrError;
         }
+        const ciphertext = responseOrError.ciphertext ?? Buffer.from([]);
         const ciphertextCrc32c =
-          responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(responseOrError.ciphertext);
+          responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(ciphertext);
+        const kmsKeyVersionName =
+          responseOrError.kmsKeyVersionName ?? `${kmsSessionKeyPath}/cryptoKeyVersions/1`;
         return [
           {
-            ciphertext: responseOrError.ciphertext,
+            ciphertext,
             ciphertextCrc32c: { value: ciphertextCrc32c.toString() },
+            name: kmsKeyVersionName,
             verifiedPlaintextCrc32c: responseOrError.verifiedPlaintextCrc32c ?? true,
           },
         ];
@@ -867,7 +899,7 @@ describe('Session keys', () => {
         );
       });
 
-      test('Ciphertext CRC32C checksum should be passed to server', async () => {
+      test('Ciphertext CRC32C checksum should be passed to KMS', async () => {
         const privateKeyCiphertext = Buffer.from('the ciphertext');
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(
@@ -886,7 +918,7 @@ describe('Session keys', () => {
         );
       });
 
-      test('Client should verify CRC32 checksum from server', async () => {
+      test('Client should verify CRC32 checksum from KMS', async () => {
         const kmsClient = makeKMSClient({ plaintextCrc32cValue: 42 });
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
@@ -932,12 +964,12 @@ describe('Session keys', () => {
     });
 
     interface KMSDecryptResponse {
-      readonly plaintext?: Buffer;
-      readonly plaintextCrc32cValue?: number;
+      readonly plaintext: Buffer;
+      readonly plaintextCrc32cValue: number;
     }
 
     function makeKMSClient(
-      responseOrError: KMSDecryptResponse | Error = {},
+      responseOrError: Partial<KMSDecryptResponse> | Error = {},
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
       jest.spyOn(kmsClient, 'decrypt').mockImplementation(async () => {

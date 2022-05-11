@@ -221,6 +221,9 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       ),
       'Failed to encrypt session key with KMS',
     );
+    if (!encryptResponse.name!.startsWith(kmsKeyName + '/')) {
+      throw new GCPKeystoreError(`KMS used the wrong encryption key (${encryptResponse.name})`);
+    }
     if (!encryptResponse.verifiedPlaintextCrc32c) {
       throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
     }
