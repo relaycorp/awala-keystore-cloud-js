@@ -196,6 +196,7 @@ describe('Identity keys', () => {
           expect.objectContaining({
             excludeFromIndexes: expect.not.arrayContaining<keyof IdentityKeyEntity>(['key']),
           }),
+          expect.anything(),
         );
       });
     });
@@ -252,6 +253,7 @@ describe('Identity keys', () => {
           expect.objectContaining({
             excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['key']),
           }),
+          expect.anything(),
         );
       });
     });
