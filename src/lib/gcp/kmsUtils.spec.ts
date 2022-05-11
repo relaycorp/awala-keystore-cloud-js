@@ -1,5 +1,6 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 
+import { derPublicKeyToPem } from '../../testUtils/asn1';
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { retrieveKMSPublicKey } from './kmsUtils';
@@ -20,7 +21,7 @@ describe('retrieveKMSPublicKey', () => {
 
   test('Public key should be output DER-serialized', async () => {
     const publicKeyDer = Buffer.from('This is a DER-encoded public key :wink:');
-    const kmsClient = makeKmsClient(derToPem(publicKeyDer));
+    const kmsClient = makeKmsClient(derPublicKeyToPem(publicKeyDer));
 
     const publicKey = await retrieveKMSPublicKey(KMS_KEY_VERSION_NAME, kmsClient);
 
@@ -28,14 +29,14 @@ describe('retrieveKMSPublicKey', () => {
     expect(Buffer.from(publicKey as ArrayBuffer)).toEqual(publicKeyDer);
   });
 
-  test('Public key export should time out after 250ms', async () => {
+  test('Public key export should time out after 300ms', async () => {
     const kmsClient = makeKmsClient();
 
     await retrieveKMSPublicKey(KMS_KEY_VERSION_NAME, kmsClient);
 
     expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ timeout: 250 }),
+      expect.objectContaining({ timeout: 300 }),
     );
   });
 
@@ -74,10 +75,5 @@ describe('retrieveKMSPublicKey', () => {
       return [{ pem: publicKeyPemOrError }, undefined, undefined];
     });
     return kmsClient;
-  }
-
-  function derToPem(derBuffer: Buffer): string {
-    const lines = derBuffer.toString('base64').match(/.{1,64}/g)!;
-    return [`-----BEGIN PUBLIC KEY-----`, ...lines, `-----END PUBLIC KEY-----`].join('\n');
   }
 });

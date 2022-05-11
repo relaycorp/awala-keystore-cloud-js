@@ -12,7 +12,7 @@ export async function retrieveKMSPublicKey(
       { name: kmsKeyVersionName },
       {
         maxRetries: 10, // Retry a few times in case the key was just created
-        timeout: 250,
+        timeout: 300,
       },
     ),
     `Failed to retrieve public key for ${kmsKeyVersionName}`,
