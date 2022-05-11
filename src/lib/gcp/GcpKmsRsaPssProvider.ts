@@ -54,9 +54,17 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
       throw new GCPKeystoreError(`Unsupported salt length of ${algorithm.saltLength} octets`);
     }
 
-    const dataCrc32c = { value: calculateCRC32C(Buffer.from(data)) };
+    return this.kmsSign(Buffer.from(data), key);
+  }
+
+  public async onVerify(): Promise<boolean> {
+    throw new GCPKeystoreError('Signature verification is unsupported');
+  }
+
+  private async kmsSign(plaintext: Buffer, key: GcpKmsRsaPssPrivateKey): Promise<ArrayBuffer> {
+    const plaintextChecksum = calculateCRC32C(plaintext);
     const [response] = await this.kmsClient.asymmetricSign(
-      { data: new Uint8Array(data), dataCrc32c, name: key.kmsKeyVersionPath },
+      { data: plaintext, dataCrc32c: { value: plaintextChecksum }, name: key.kmsKeyVersionPath },
       { timeout: 500 },
     );
 
@@ -68,9 +76,5 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
       throw new GCPKeystoreError('Signature CRC32C checksum does not match one received from KMS');
     }
     return bufferToArrayBuffer(signature);
-  }
-
-  public async onVerify(): Promise<boolean> {
-    throw new GCPKeystoreError('Signature verification is unsupported');
   }
 }
