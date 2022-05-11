@@ -67,7 +67,7 @@ describe('retrieveKMSPublicKey', () => {
     publicKeyPemOrError: string | Error = 'pub key',
   ): KeyManagementServiceClient {
     const kmsClient = new KeyManagementServiceClient();
-    jest.spyOn(kmsClient, 'getPublicKey').mockImplementation(() => {
+    jest.spyOn(kmsClient, 'getPublicKey').mockImplementation(async () => {
       if (publicKeyPemOrError instanceof Error) {
         throw publicKeyPemOrError;
       }

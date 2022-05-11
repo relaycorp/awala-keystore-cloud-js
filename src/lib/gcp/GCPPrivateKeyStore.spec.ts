@@ -13,7 +13,7 @@ import {
 } from '@relaycorp/relaynet-core';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
 
-import { mockSpy } from '../../testUtils/jest';
+import { getMockInstance, mockSpy } from '../../testUtils/jest';
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { bufferToArrayBuffer } from '../utils/buffer';
 import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
@@ -212,6 +212,23 @@ describe('Identity keys', () => {
         );
       });
 
+      test('Error to create key version should be wrapped', async () => {
+        const callError = new Error('Cannot create key version');
+        const kmsClient = makeKmsClient();
+        jest.spyOn(kmsClient, 'createCryptoKeyVersion').mockImplementation(async () => {
+          throw callError;
+        });
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        const error = await catchPromiseRejection(
+          store.generateIdentityKeyPair(),
+          GCPKeystoreError,
+        );
+
+        expect(error.message).toStartWith('Failed to create key version');
+        expect(error.cause()).toEqual(callError);
+      });
+
       test('Key name should not be indexed in Datastore', async () => {
         const datastoreClient = makeDatastoreClient();
         const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
@@ -287,6 +304,21 @@ describe('Identity keys', () => {
             excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['version']),
           }),
         );
+      });
+
+      test('Error to create document should be wrapped', async () => {
+        const datastoreClient = makeDatastoreClient();
+        const callError = new Error('I refuse to save it');
+        getMockInstance(datastoreClient.save).mockRejectedValue(callError);
+        const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
+
+        const error = await catchPromiseRejection(
+          store.generateIdentityKeyPair(),
+          GCPKeystoreError,
+        );
+
+        expect(error.message).toStartWith('Failed to register identity key on Datastore');
+        expect(error.cause()).toEqual(callError);
       });
     });
 
@@ -595,6 +627,23 @@ describe('Session keys', () => {
       );
     });
 
+    test('Error to store Datastore document should be wrapped', async () => {
+      const callError = new Error('Sorry');
+      const store = new GCPPrivateKeyStore(
+        makeKMSClient(),
+        makeDatastoreClient(callError),
+        KMS_CONFIG,
+      );
+
+      const error = await catchPromiseRejection(
+        store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+        PrivateKeyStoreError,
+      );
+
+      expect(error.cause()?.message).toStartWith('Failed to store session key in Datastore');
+      expect((error.cause() as GCPKeystoreError).cause()).toEqual(callError);
+    });
+
     describe('KMS encryption', () => {
       test('Specified KMS key should be used', async () => {
         const kmsClient = makeKMSClient();
@@ -780,9 +829,13 @@ describe('Session keys', () => {
       return kmsClient;
     }
 
-    function makeDatastoreClient(): Datastore {
+    function makeDatastoreClient(error?: Error): Datastore {
       const datastore = new Datastore();
-      jest.spyOn(datastore, 'insert').mockImplementation(() => undefined);
+      jest.spyOn(datastore, 'insert').mockImplementation(async () => {
+        if (error) {
+          throw error;
+        }
+      });
       return datastore;
     }
   });
@@ -867,6 +920,23 @@ describe('Session keys', () => {
       await expect(derSerializePrivateKey(key)).resolves.toEqual(
         await derSerializePrivateKey(sessionKeyPair.privateKey),
       );
+    });
+
+    test('Error to retrieve Datastore document should be wrapped', async () => {
+      const callError = new Error('The error');
+      const store = new GCPPrivateKeyStore(
+        makeKMSClient(),
+        makeDatastoreClient(callError),
+        KMS_CONFIG,
+      );
+
+      const error = await catchPromiseRejection(
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress),
+        PrivateKeyStoreError,
+      );
+
+      expect(error.cause()?.message).toStartWith('Failed to retrieve key');
+      expect((error.cause() as GCPKeystoreError).cause()).toEqual(callError);
     });
 
     describe('KMS decryption', () => {
@@ -991,7 +1061,7 @@ describe('Session keys', () => {
       },
     ): Datastore {
       const datastore = new Datastore();
-      jest.spyOn(datastore, 'get').mockImplementation(() => {
+      jest.spyOn(datastore, 'get').mockImplementation(async () => {
         if (keyDocumentOrError instanceof Error) {
           throw keyDocumentOrError;
         }

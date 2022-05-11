@@ -16,3 +16,7 @@ export function mockSpy<T, Y extends any[]>(
 
   return spy;
 }
+
+export function getMockInstance(mockedObject: any): jest.MockInstance<any, any> {
+  return mockedObject as any;
+}

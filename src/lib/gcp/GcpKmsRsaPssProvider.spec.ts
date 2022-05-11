@@ -3,6 +3,7 @@ import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey } from 'webcrypto-core';
 
 import { mockSpy } from '../../testUtils/jest';
+import { catchPromiseRejection } from '../../testUtils/promises';
 import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
@@ -147,6 +148,19 @@ describe('onSign', () => {
     );
   });
 
+  test('API call errors should be wrapped', async () => {
+    const callError = new Error('Bruno. There. I said it.');
+    const provider = new GcpKmsRsaPssProvider(makeKmsClient(callError));
+
+    const error = await catchPromiseRejection(
+      provider.sign(ALGORITHM, PRIVATE_KEY, PLAINTEXT),
+      GCPKeystoreError,
+    );
+
+    expect(error.message).toStartWith('KMS signature request failed');
+    expect(error.cause()).toEqual(callError);
+  });
+
   describe('Algorithm parameters', () => {
     test.each([32, 64])('Salt length of %s should be accepted', async (saltLength) => {
       const kmsClient = makeKmsClient();
@@ -177,10 +191,14 @@ describe('onSign', () => {
   }
 
   function makeKmsClient(
-    responseOrError: Partial<KMSSignatureResponse> = {},
+    responseOrError: Partial<KMSSignatureResponse> | Error = {},
   ): KeyManagementServiceClient {
     const kmsClient = new KeyManagementServiceClient();
     jest.spyOn(kmsClient, 'asymmetricSign').mockImplementation(async () => {
+      if (responseOrError instanceof Error) {
+        throw responseOrError;
+      }
+
       const signature = responseOrError.signature ?? SIGNATURE;
       const signatureCrc32c = responseOrError.signatureCRC32C ?? calculateCRC32C(signature);
       const response = {

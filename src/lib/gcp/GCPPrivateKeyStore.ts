@@ -108,16 +108,22 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       peerPrivateAddress,
       privateKeyCiphertext: await this.encryptSessionPrivateKey(keySerialized),
     };
-    await this.datastoreClient.insert({
-      data,
-      excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS,
-      key: datastoreKey,
-    });
+    await wrapGCPCallError(
+      this.datastoreClient.insert({
+        data,
+        excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS,
+        key: datastoreKey,
+      }),
+      'Failed to store session key in Datastore',
+    );
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
-    const [entity] = await this.datastoreClient.get(datastoreKey);
+    const [entity] = await wrapGCPCallError(
+      this.datastoreClient.get(datastoreKey),
+      'Failed to retrieve key',
+    );
     if (!entity) {
       return null;
     }
@@ -153,9 +159,10 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   ): Promise<string> {
     if (isInitialKeyVersionLinked) {
       // Version 1 of the KMS key was already linked, so create a new version.
-      const [kmsVersionResponse] = await this.kmsClient.createCryptoKeyVersion({
-        parent: kmsKeyName,
-      });
+      const [kmsVersionResponse] = await wrapGCPCallError(
+        this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }),
+        'Failed to create key version',
+      );
       return kmsVersionResponse.name!;
     }
 
@@ -201,11 +208,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
         kmsKeyVersionPath,
       ) as string,
     };
-    await this.datastoreClient.save({
-      data: identityKeyEntity,
-      excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
-      key: datastoreKey,
-    });
+    await wrapGCPCallError(
+      this.datastoreClient.save({
+        data: identityKeyEntity,
+        excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
+        key: datastoreKey,
+      }),
+      'Failed to register identity key on Datastore',
+    );
   }
 
   //endregion

@@ -5,6 +5,7 @@ import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
+import { wrapGCPCallError } from './gcpUtils';
 import { retrieveKMSPublicKey } from './kmsUtils';
 
 // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms
@@ -63,9 +64,12 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
 
   private async kmsSign(plaintext: Buffer, key: GcpKmsRsaPssPrivateKey): Promise<ArrayBuffer> {
     const plaintextChecksum = calculateCRC32C(plaintext);
-    const [response] = await this.kmsClient.asymmetricSign(
-      { data: plaintext, dataCrc32c: { value: plaintextChecksum }, name: key.kmsKeyVersionPath },
-      { timeout: 500 },
+    const [response] = await wrapGCPCallError(
+      this.kmsClient.asymmetricSign(
+        { data: plaintext, dataCrc32c: { value: plaintextChecksum }, name: key.kmsKeyVersionPath },
+        { timeout: 500 },
+      ),
+      'KMS signature request failed',
     );
 
     if (response.name !== key.kmsKeyVersionPath) {
