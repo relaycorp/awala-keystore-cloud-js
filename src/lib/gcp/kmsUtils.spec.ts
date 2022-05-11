@@ -28,25 +28,25 @@ describe('retrieveKMSPublicKey', () => {
     expect(Buffer.from(publicKey as ArrayBuffer)).toEqual(publicKeyDer);
   });
 
-  test('Public key export should time out after 500ms', async () => {
+  test('Public key export should time out after 250ms', async () => {
     const kmsClient = makeKmsClient();
 
     await retrieveKMSPublicKey(KMS_KEY_VERSION_NAME, kmsClient);
 
     expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ timeout: 500 }),
+      expect.objectContaining({ timeout: 250 }),
     );
   });
 
-  test('Public key export should be retried up to 5 times', async () => {
+  test('Public key export should be retried up to 10 times', async () => {
     const kmsClient = makeKmsClient();
 
     await retrieveKMSPublicKey(KMS_KEY_VERSION_NAME, kmsClient);
 
     expect(kmsClient.getPublicKey).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ maxRetries: 5 }),
+      expect.objectContaining({ maxRetries: 10 }),
     );
   });
 

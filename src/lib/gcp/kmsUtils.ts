@@ -11,8 +11,8 @@ export async function retrieveKMSPublicKey(
     kmsClient.getPublicKey(
       { name: kmsKeyVersionName },
       {
-        maxRetries: 5, // Retry a few times in case the key was just created
-        timeout: 500,
+        maxRetries: 10, // Retry a few times in case the key was just created
+        timeout: 250,
       },
     ),
     `Failed to retrieve public key for ${kmsKeyVersionName}`,
