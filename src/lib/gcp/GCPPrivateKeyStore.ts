@@ -214,9 +214,12 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   private async encryptSessionPrivateKey(keySerialized: Buffer): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
     const plaintextCRC32C = calculateCRC32C(keySerialized);
-    const [encryptResponse] = await this.kmsClient.encrypt(
-      { name: kmsKeyName, plaintext: keySerialized, plaintextCrc32c: { value: plaintextCRC32C } },
-      { timeout: 500 },
+    const [encryptResponse] = await wrapGCPCallError(
+      this.kmsClient.encrypt(
+        { name: kmsKeyName, plaintext: keySerialized, plaintextCrc32c: { value: plaintextCRC32C } },
+        { timeout: 500 },
+      ),
+      'Failed to encrypt session key with KMS',
     );
     if (!encryptResponse.verifiedPlaintextCrc32c) {
       throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
@@ -240,7 +243,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
         },
         { timeout: 500 },
       ),
-      'Failed to decrypt with KMS',
+      'Failed to decrypt session key with KMS',
     );
     const plaintext = decryptionResponse.plaintext as Buffer;
     if (calculateCRC32C(plaintext) !== decryptionResponse.plaintextCrc32c!.value) {

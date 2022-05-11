@@ -701,6 +701,24 @@ describe('Session keys', () => {
           'Ciphertext CRC32C checksum does not match that from KMS',
         );
       });
+
+      test('API call error should be wrapped', async () => {
+        const kmsError = new Error('Someone talked about Bruno');
+        const store = new GCPPrivateKeyStore(
+          makeKMSClient(kmsError),
+          makeDatastoreClient(),
+          KMS_CONFIG,
+        );
+
+        const error = await catchPromiseRejection(
+          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
+          PrivateKeyStoreError,
+        );
+
+        expect(error.message).toContain('Failed to encrypt session key with KMS');
+        expect(error.cause()).toBeInstanceOf(GCPKeystoreError);
+        expect((error.cause() as GCPKeystoreError).cause()).toEqual(kmsError);
+      });
     });
 
     interface KMSEncryptResponse {
@@ -713,7 +731,7 @@ describe('Session keys', () => {
       responseOrError: KMSEncryptResponse | Error = { ciphertext: Buffer.from([]) },
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
-      jest.spyOn(kmsClient, 'encrypt').mockImplementation(() => {
+      jest.spyOn(kmsClient, 'encrypt').mockImplementation(async () => {
         if (responseOrError instanceof Error) {
           throw responseOrError;
         }
@@ -909,7 +927,7 @@ describe('Session keys', () => {
           PrivateKeyStoreError,
         );
 
-        expect(error.message).toContain('Failed to decrypt with KMS');
+        expect(error.message).toContain('Failed to decrypt session key with KMS');
         expect(error.cause()).toBeInstanceOf(GCPKeystoreError);
         expect((error.cause() as GCPKeystoreError).cause()).toEqual(kmsError);
       });
