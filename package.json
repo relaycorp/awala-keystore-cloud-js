@@ -32,6 +32,7 @@
     "test:ci:unit": "run-s build test:ci:unit:jest",
     "test:ci:unit:jest": "jest --config jest.config.ci.js --coverage",
     "test:integration": "exit 0",
+    "test:integration:local": "jest --config src/functional_tests/jest.config.js --runInBand --detectOpenHandles",
     "doc-api": "typedoc src/index.ts --out build/docs",
     "clean": "del-cli build test"
   },
@@ -39,7 +40,11 @@
     "node": ">=12"
   },
   "dependencies": {
-    "@relaycorp/relaynet-core": "^1.77.1"
+    "@google-cloud/datastore": "^6.6.2",
+    "@google-cloud/kms": "^2.11.1",
+    "@relaycorp/relaynet-core": "^1.77.1",
+    "fast-crc32c": "^2.0.0",
+    "webcrypto-core": "^1.7.3"
   },
   "peerDependencies": {
     "@relaycorp/relaynet-core": "< 2.0"
