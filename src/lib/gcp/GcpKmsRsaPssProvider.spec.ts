@@ -171,9 +171,10 @@ describe('onSign', () => {
     const kmsClient = new KeyManagementServiceClient();
     jest.spyOn(kmsClient, 'asymmetricSign').mockImplementation(async () => {
       const signature = responseOrError.signature ?? SIGNATURE;
+      const signatureCrc32c = responseOrError.signatureCRC32C ?? calculateCRC32C(signature);
       const response = {
         signature: new Uint8Array(signature),
-        signatureCrc32c: { value: responseOrError.signatureCRC32C ?? calculateCRC32C(signature) },
+        signatureCrc32c: { value: signatureCrc32c.toString() },
         verifiedDataCrc32c: responseOrError.verifiedSignatureCRC32C ?? true,
       };
       return [response, undefined, undefined];

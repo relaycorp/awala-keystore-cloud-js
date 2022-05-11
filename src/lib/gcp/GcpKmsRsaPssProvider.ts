@@ -2,6 +2,7 @@ import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 
+import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { retrieveKMSPublicKey } from './kmsUtils';
@@ -62,10 +63,11 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     if (!response.verifiedDataCrc32c) {
       throw new GCPKeystoreError('KMS failed to verify plaintext CRC32C checksum');
     }
-    if (calculateCRC32C(response.signature as Buffer) !== response.signatureCrc32c!.value) {
+    const signature = response.signature as Buffer;
+    if (calculateCRC32C(signature) !== Number(response.signatureCrc32c!.value)) {
       throw new GCPKeystoreError('Signature CRC32C checksum does not match one received from KMS');
     }
-    return response.signature as Uint8Array;
+    return bufferToArrayBuffer(signature);
   }
 
   public async onVerify(): Promise<boolean> {

@@ -735,14 +735,12 @@ describe('Session keys', () => {
         if (responseOrError instanceof Error) {
           throw responseOrError;
         }
-        const ciphertextCrc32c = {
-          value:
-            responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(responseOrError.ciphertext),
-        };
+        const ciphertextCrc32c =
+          responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(responseOrError.ciphertext);
         return [
           {
             ciphertext: responseOrError.ciphertext,
-            ciphertextCrc32c,
+            ciphertextCrc32c: { value: ciphertextCrc32c.toString() },
             verifiedPlaintextCrc32c: responseOrError.verifiedPlaintextCrc32c ?? true,
           },
         ];
@@ -948,10 +946,8 @@ describe('Session keys', () => {
         }
         const plaintext =
           responseOrError.plaintext ?? (await derSerializePrivateKey(sessionKeyPair.privateKey));
-        const plaintextCrc32c = {
-          value: responseOrError.plaintextCrc32cValue ?? calculateCRC32C(plaintext),
-        };
-        return [{ plaintext, plaintextCrc32c }];
+        const plaintextCrc32c = responseOrError.plaintextCrc32cValue ?? calculateCRC32C(plaintext);
+        return [{ plaintext, plaintextCrc32c: { value: plaintextCrc32c.toString() } }];
       });
       return kmsClient;
     }
