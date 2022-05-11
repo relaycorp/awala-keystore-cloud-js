@@ -20,3 +20,18 @@ export function mockSpy<T, Y extends any[]>(
 export function getMockInstance(mockedObject: any): jest.MockInstance<any, any> {
   return mockedObject as any;
 }
+
+export function getMockContext(mockedObject: any): jest.MockContext<any, any> {
+  const mockInstance = getMockInstance(mockedObject);
+  return mockInstance.mock;
+}
+
+export function useFakeTimers(): void {
+  beforeEach(() => {
+    jest.useFakeTimers('modern');
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+}
