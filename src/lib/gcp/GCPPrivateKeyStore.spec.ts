@@ -209,6 +209,19 @@ describe('Identity keys', () => {
 
         expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
           expect.objectContaining({ parent: kmsIdentityKeyPath }),
+          expect.anything(),
+        );
+      });
+
+      test('Version creation call should time out after 500ms', async () => {
+        const kmsClient = makeKmsClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.generateIdentityKeyPair();
+
+        expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ timeout: 500 }),
         );
       });
 
@@ -229,7 +242,7 @@ describe('Identity keys', () => {
         expect(error.cause()).toEqual(callError);
       });
 
-      test('Key name should not be indexed in Datastore', async () => {
+      test('KMS key id should not be indexed in Datastore', async () => {
         const datastoreClient = makeDatastoreClient();
         const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
 
@@ -254,6 +267,7 @@ describe('Identity keys', () => {
           expect.objectContaining({
             key: expect.objectContaining({ kind: DatastoreKinds.IDENTITY_KEYS }),
           }),
+          expect.anything(),
         );
       });
 
@@ -267,6 +281,7 @@ describe('Identity keys', () => {
           expect.objectContaining({
             key: expect.objectContaining({ name: stubPrivateAddress }),
           }),
+          expect.anything(),
         );
       });
 
@@ -282,6 +297,7 @@ describe('Identity keys', () => {
               key: KMS_CONFIG.identityKeyId,
             }),
           }),
+          expect.anything(),
         );
       });
 
@@ -303,6 +319,19 @@ describe('Identity keys', () => {
             }),
             excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['version']),
           }),
+          expect.anything(),
+        );
+      });
+
+      test('Document creation should time out after 500ms', async () => {
+        const datastoreClient = makeDatastoreClient();
+        const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
+
+        await store.generateIdentityKeyPair();
+
+        expect(datastoreClient.save).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ timeout: 500 }),
         );
       });
 
@@ -521,10 +550,11 @@ describe('Session keys', () => {
 
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           key: expect.objectContaining({ kind: DatastoreKinds.SESSION_KEYS }),
         }),
+        expect.anything(),
       );
     });
 
@@ -534,10 +564,11 @@ describe('Session keys', () => {
 
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           key: expect.objectContaining({ name: sessionKeyPair.sessionKey.keyId.toString('hex') }),
         }),
+        expect.anything(),
       );
     });
 
@@ -551,13 +582,14 @@ describe('Session keys', () => {
         peerPrivateAddress,
       );
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining<Partial<SessionKeyEntity>>({ peerPrivateAddress }),
           excludeFromIndexes: expect.arrayContaining<keyof SessionKeyEntity>([
             'peerPrivateAddress',
           ]),
         }),
+        expect.anything(),
       );
     });
 
@@ -567,12 +599,13 @@ describe('Session keys', () => {
 
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining<Partial<SessionKeyEntity>>({
             peerPrivateAddress: undefined,
           }),
         }),
+        expect.anything(),
       );
     });
 
@@ -587,10 +620,11 @@ describe('Session keys', () => {
 
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining<Partial<SessionKeyEntity>>({ privateKeyCiphertext }),
         }),
+        expect.anything(),
       );
     });
 
@@ -600,12 +634,13 @@ describe('Session keys', () => {
 
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           excludeFromIndexes: expect.arrayContaining<keyof SessionKeyEntity>([
             'privateKeyCiphertext',
           ]),
         }),
+        expect.anything(),
       );
     });
 
@@ -617,13 +652,26 @@ describe('Session keys', () => {
       await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
 
       const afterDate = new Date();
-      expect(datastoreClient.insert).toHaveBeenCalledWith(
+      expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining<Partial<SessionKeyEntity>>({
             creationDate: expect.toSatisfy((date) => beforeDate <= date && date <= afterDate),
           }),
           excludeFromIndexes: expect.not.arrayContaining<keyof SessionKeyEntity>(['creationDate']),
         }),
+        expect.anything(),
+      );
+    });
+
+    test('Datastore call should time out after 500ms', async () => {
+      const datastoreClient = makeDatastoreClient();
+      const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+
+      expect(datastoreClient.save).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ timeout: 500 }),
       );
     });
 
@@ -831,7 +879,7 @@ describe('Session keys', () => {
 
     function makeDatastoreClient(error?: Error): Datastore {
       const datastore = new Datastore();
-      jest.spyOn(datastore, 'insert').mockImplementation(async () => {
+      jest.spyOn(datastore, 'save').mockImplementation(async () => {
         if (error) {
           throw error;
         }
@@ -849,6 +897,7 @@ describe('Session keys', () => {
 
       expect(datastoreClient.get).toHaveBeenCalledWith(
         expect.objectContaining({ kind: DatastoreKinds.SESSION_KEYS }),
+        expect.anything(),
       );
     });
 
@@ -860,6 +909,7 @@ describe('Session keys', () => {
 
       expect(datastoreClient.get).toHaveBeenCalledWith(
         expect.objectContaining({ name: sessionKeyPair.sessionKey.keyId.toString('hex') }),
+        expect.anything(),
       );
     });
 
@@ -919,6 +969,18 @@ describe('Session keys', () => {
 
       await expect(derSerializePrivateKey(key)).resolves.toEqual(
         await derSerializePrivateKey(sessionKeyPair.privateKey),
+      );
+    });
+
+    test('Datastore call should time out after 500ms', async () => {
+      const datastoreClient = makeDatastoreClient();
+      const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId);
+
+      expect(datastoreClient.get).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ gaxOptions: expect.objectContaining({ timeout: 500 }) }),
       );
     });
 

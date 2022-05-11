@@ -109,11 +109,10 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       privateKeyCiphertext: await this.encryptSessionPrivateKey(keySerialized),
     };
     await wrapGCPCallError(
-      this.datastoreClient.insert({
-        data,
-        excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS,
-        key: datastoreKey,
-      }),
+      this.datastoreClient.save(
+        { data, excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS, key: datastoreKey },
+        { timeout: 500 },
+      ),
       'Failed to store session key in Datastore',
     );
   }
@@ -121,7 +120,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
     const [entity] = await wrapGCPCallError(
-      this.datastoreClient.get(datastoreKey),
+      this.datastoreClient.get(datastoreKey, { gaxOptions: { timeout: 500 } }),
       'Failed to retrieve key',
     );
     if (!entity) {
@@ -160,7 +159,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     if (isInitialKeyVersionLinked) {
       // Version 1 of the KMS key was already linked, so create a new version.
       const [kmsVersionResponse] = await wrapGCPCallError(
-        this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }),
+        this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }, { timeout: 500 }),
         'Failed to create key version',
       );
       return kmsVersionResponse.name!;
@@ -209,11 +208,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       ) as string,
     };
     await wrapGCPCallError(
-      this.datastoreClient.save({
-        data: identityKeyEntity,
-        excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
-        key: datastoreKey,
-      }),
+      this.datastoreClient.save(
+        {
+          data: identityKeyEntity,
+          excludeFromIndexes: ['version', ...(isInitialKeyVersionLinked ? ['key'] : [])],
+          key: datastoreKey,
+        },
+        { timeout: 500 },
+      ),
       'Failed to register identity key on Datastore',
     );
   }
