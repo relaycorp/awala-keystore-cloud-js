@@ -20,7 +20,7 @@ The unit test suite can be run the standard way on Node.js: `npm test`.
 
 The integration tests aren't currently run on CI, and can be run with `npm run test:integration:local`. Note that some environments variables must be set, and others are optional:
 
-- [`GOOGLE_APPLICATION_CREDENTIALS`](https://cloud.google.com/docs/authentication/getting-started) (required), using a service account. **Make sure to create a brand new, temporary GCP project**. All GCP resources will be created within the same project where the service account lives. The GCP service account should be allowed to manage KMS and Datastore resources.
+- [`GOOGLE_APPLICATION_CREDENTIALS`](https://cloud.google.com/docs/authentication/getting-started) (required), using a service account. All GCP resources will be created within the same project where the service account lives. The GCP service account should be allowed to manage KMS and Datastore resources.
 - `GCP_LOCATION` (default: `europe-west3`). The location where resources will be created.
 
-The test suite will automatically delete all the resources it created, except for those that can't be deleted (e.g., GPC KMS key rings). Existing resources are not modified.
+The test suite will automatically delete all the resources it created, except for those that can't be deleted (e.g., GPC KMS key rings). Existing resources are not modified. However, this may not always be true due to bugs, so **always create a brand new, temporary GCP project**.
