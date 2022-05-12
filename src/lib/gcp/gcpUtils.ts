@@ -3,7 +3,7 @@ import { GCPKeystoreError } from './GCPKeystoreError';
 /**
  * Wrap GCP API call errors
  *
- * To provide meaningful a useful stack trace and error message.
+ * To provide a useful stack trace and error message, which we don't get with GCP library errors.
  *
  * @param callPromise
  * @param errorMessage
