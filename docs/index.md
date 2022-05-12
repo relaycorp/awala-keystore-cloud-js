@@ -1,3 +1,6 @@
+---
+nav_order: 0
+---
 # @relaycorp/awala-keystore-cloud
 
 `@relaycorp/awala-keystore-cloud` is a Node.js library that implements [Awala](https://awala.network/) keystores across a range of cloud providers and open source backing services, so that server-side apps can be deployed to a wide variety of platforms.
