@@ -4,7 +4,7 @@ permalink: /gcp
 ---
 # Google Cloud Platform (GCP)
 
-The GCP keystores only use Cloud KMS and Firestore in Datastore mode, both of which are serverless and fully managed by Google, so you don't need to worry about up/down scaling or uptime/performance monitoring.
+The GCP keystores only use [Cloud KMS](https://cloud.google.com/kms) and [Firestore](https://cloud.google.com/firestore) in Datastore mode, both of which are serverless and fully managed by Google, so you don't need to worry about up/down scaling or uptime/performance monitoring.
 
 Sensitive cryptographic material is protected with Cloud KMS as follows:
 
@@ -32,7 +32,7 @@ This library will provision and manage the following resources:
 
 ## Recommendations
 
-- Rotate KMS encryption key versions periodically.
+- [Rotate KMS encryption key versions periodically](https://cloud.google.com/kms/docs/key-rotation).
 - Monitor your Cloud KMS and Datastore quotas, to request increases when/if necessary.
 
 ## IAM Permissions
