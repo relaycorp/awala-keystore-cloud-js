@@ -9,7 +9,7 @@ The GCP keystores only use [Cloud KMS](https://cloud.google.com/kms) and [Firest
 Sensitive cryptographic material is protected with Cloud KMS as follows:
 
 - Awala identity key pairs (used for digital signatures) are stored in and fully managed by Cloud KMS. Cloud KMS performs all the cryptographic operations. Neither this library nor the app using it can access the private key.
-- Awala session key pairs (used for encryption) are stored in Datastore, encrypted with a customer-managed KMS key and using [Additional Authenticated Data (AAD)](https://github.com/relaycorp/awala-keystore-cloud-js/issues/6) for extra security. We wish these too were stored in KMS, but [KMS doesn't currently support the algorithms we require](https://issuetracker.google.com/issues/231334600).
+- Awala session key pairs (used for encryption) are stored in Datastore, encrypted with a customer-managed KMS key and using [Additional Authenticated Data (AAD)](https://cloud.google.com/kms/docs/additional-authenticated-data) for extra security. We wish these too were stored in KMS, but [KMS doesn't currently support the algorithms we require](https://issuetracker.google.com/issues/231334600).
 
 As of this writing, the library complies with all of [KMS' data integrity guidelines](https://cloud.google.com/kms/docs/data-integrity-guidelines).
 
