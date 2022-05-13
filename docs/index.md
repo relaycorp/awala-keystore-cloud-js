@@ -9,4 +9,6 @@ Most of this documentation is aimed at _operators_ of those server-side apps usi
 
 The following platforms are currently supported:
 
-- [Google Cloud Platform (GCP)](gcp.md).
+| Adapter | Private key store | Public key store | Certificate store |
+| --- | --- | --- | --- |
+| [Google Cloud Platform (GCP)](gcp.md) | ✓ | ✓ | ✓ |
