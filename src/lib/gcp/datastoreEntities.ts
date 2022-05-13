@@ -12,5 +12,6 @@ export interface IdentityKeyEntity {
 export interface SessionKeyEntity {
   readonly creationDate: Date;
   readonly privateKeyCiphertext: Buffer;
+  readonly privateAddress: string;
   readonly peerPrivateAddress?: string;
 }

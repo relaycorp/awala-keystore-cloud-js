@@ -7,7 +7,7 @@ import {
   derSerializePublicKey,
   generateRSAKeyPair,
   getPrivateAddressFromIdentityKey,
-  PrivateKeyStoreError,
+  KeyStoreError,
   SessionKeyPair,
   UnknownKeyError,
 } from '@relaycorp/relaynet-core';
@@ -417,6 +417,7 @@ describe('Identity keys', () => {
 });
 
 describe('Session keys', () => {
+  const privateAddress = '0deadc0de';
   const peerPrivateAddress = '0deadbeef';
 
   let sessionKeyPair: SessionKeyPair;
@@ -438,7 +439,11 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -452,7 +457,11 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -462,13 +471,34 @@ describe('Session keys', () => {
       );
     });
 
-    test('Peer private address should be stored (but not indexed) if key is bound', async () => {
+    test('Node private address should be stored but not indexed', async () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveBoundSessionKey(
+      await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+        peerPrivateAddress,
+      );
+
+      expect(datastoreClient.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining<Partial<SessionKeyEntity>>({ privateAddress }),
+          excludeFromIndexes: expect.arrayContaining<keyof SessionKeyEntity>(['privateAddress']),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('Peer private address should be stored but not indexed', async () => {
+      const datastoreClient = makeDatastoreClient();
+      const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
         peerPrivateAddress,
       );
 
@@ -487,7 +517,11 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -508,7 +542,11 @@ describe('Session keys', () => {
         KMS_CONFIG,
       );
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -522,7 +560,11 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -539,7 +581,11 @@ describe('Session keys', () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
       const beforeDate = new Date();
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       const afterDate = new Date();
       expect(datastoreClient.save).toHaveBeenCalledWith(
@@ -557,7 +603,11 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId);
+      await store.saveSessionKey(
+        sessionKeyPair.privateKey,
+        sessionKeyPair.sessionKey.keyId,
+        privateAddress,
+      );
 
       expect(datastoreClient.save).toHaveBeenCalledWith(
         expect.anything(),
@@ -574,8 +624,12 @@ describe('Session keys', () => {
       );
 
       const error = await catchPromiseRejection(
-        store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-        PrivateKeyStoreError,
+        store.saveSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+        ),
+        KeyStoreError,
       );
 
       expect(error.cause()?.message).toStartWith('Failed to store session key in Datastore');
@@ -587,9 +641,10 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.saveUnboundSessionKey(
+        await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
+          privateAddress,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -602,9 +657,10 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.saveUnboundSessionKey(
+        await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
+          privateAddress,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -619,9 +675,10 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.saveUnboundSessionKey(
+        await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
+          privateAddress,
         );
 
         const privateKeySerialized = await derSerializePrivateKey(sessionKeyPair.privateKey);
@@ -641,8 +698,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-          PrivateKeyStoreError,
+          store.saveSessionKey(
+            sessionKeyPair.privateKey,
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual('KMS failed to verify plaintext CRC32C checksum');
@@ -660,8 +721,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-          PrivateKeyStoreError,
+          store.saveSessionKey(
+            sessionKeyPair.privateKey,
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual(
@@ -678,8 +743,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-          PrivateKeyStoreError,
+          store.saveSessionKey(
+            sessionKeyPair.privateKey,
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
@@ -694,8 +763,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-          PrivateKeyStoreError,
+          store.saveSessionKey(
+            sessionKeyPair.privateKey,
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
@@ -705,9 +778,10 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.saveUnboundSessionKey(
+        await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
+          privateAddress,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -725,8 +799,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveUnboundSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId),
-          PrivateKeyStoreError,
+          store.saveSessionKey(
+            sessionKeyPair.privateKey,
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.message).toContain('Failed to encrypt session key with KMS');
@@ -783,7 +861,7 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId);
+      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, privateAddress);
 
       expect(datastoreClient.get).toHaveBeenCalledWith(
         expect.objectContaining({ kind: DatastoreKinds.SESSION_KEYS }),
@@ -795,7 +873,7 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId);
+      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, privateAddress);
 
       expect(datastoreClient.get).toHaveBeenCalledWith(
         expect.objectContaining({ name: sessionKeyPair.sessionKey.keyId.toString('hex') }),
@@ -808,7 +886,7 @@ describe('Session keys', () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
       await expect(
-        store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId),
+        store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, privateAddress),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
@@ -817,6 +895,7 @@ describe('Session keys', () => {
 
       const key = await store.retrieveSessionKey(
         sessionKeyPair.sessionKey.keyId,
+        privateAddress,
         peerPrivateAddress,
       );
 
@@ -825,19 +904,45 @@ describe('Session keys', () => {
       );
     });
 
-    test('Bound key should not be returned if peer does not match', async () => {
+    test('Bound key should not be returned if owner does not match', async () => {
       const store = new GCPPrivateKeyStore(
         makeKMSClient(),
         makeDatastoreClient({
           creationDate: new Date(),
           peerPrivateAddress,
+          privateAddress,
           privateKeyCiphertext: Buffer.from('ciphertext'),
         }),
         KMS_CONFIG,
       );
 
       await expect(
-        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, `not${peerPrivateAddress}`),
+        store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          `not-${privateAddress}`,
+          peerPrivateAddress,
+        ),
+      ).rejects.toBeInstanceOf(UnknownKeyError);
+    });
+
+    test('Bound key should not be returned if peer does not match', async () => {
+      const store = new GCPPrivateKeyStore(
+        makeKMSClient(),
+        makeDatastoreClient({
+          creationDate: new Date(),
+          peerPrivateAddress,
+          privateAddress,
+          privateKeyCiphertext: Buffer.from('ciphertext'),
+        }),
+        KMS_CONFIG,
+      );
+
+      await expect(
+        store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          `not${peerPrivateAddress}`,
+        ),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
@@ -847,6 +952,7 @@ describe('Session keys', () => {
         makeDatastoreClient({
           creationDate: new Date(),
           peerPrivateAddress,
+          privateAddress,
           privateKeyCiphertext: Buffer.from('ciphertext'),
         }),
         KMS_CONFIG,
@@ -854,6 +960,7 @@ describe('Session keys', () => {
 
       const key = await store.retrieveSessionKey(
         sessionKeyPair.sessionKey.keyId,
+        privateAddress,
         peerPrivateAddress,
       );
 
@@ -866,7 +973,7 @@ describe('Session keys', () => {
       const datastoreClient = makeDatastoreClient();
       const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
 
-      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId);
+      await store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, privateAddress);
 
       expect(datastoreClient.get).toHaveBeenCalledWith(
         expect.anything(),
@@ -883,8 +990,12 @@ describe('Session keys', () => {
       );
 
       const error = await catchPromiseRejection(
-        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress),
-        PrivateKeyStoreError,
+        store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        ),
+        KeyStoreError,
       );
 
       expect(error.cause()?.message).toStartWith('Failed to retrieve key');
@@ -896,7 +1007,11 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({ name: kmsSessionKeyPath }),
@@ -909,11 +1024,15 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(
           kmsClient,
-          makeDatastoreClient({ creationDate: new Date(), privateKeyCiphertext }),
+          makeDatastoreClient({ creationDate: new Date(), privateAddress, privateKeyCiphertext }),
           KMS_CONFIG,
         );
 
-        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({ ciphertext: privateKeyCiphertext }),
@@ -926,11 +1045,15 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(
           kmsClient,
-          makeDatastoreClient({ creationDate: new Date(), privateKeyCiphertext }),
+          makeDatastoreClient({ creationDate: new Date(), privateAddress, privateKeyCiphertext }),
           KMS_CONFIG,
         );
 
-        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -945,8 +1068,12 @@ describe('Session keys', () => {
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
         const error = await catchPromiseRejection(
-          store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress),
-          PrivateKeyStoreError,
+          store.retrieveSessionKey(
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+            peerPrivateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual(
@@ -958,7 +1085,11 @@ describe('Session keys', () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
 
-        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress);
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.anything(),
@@ -975,8 +1106,12 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, peerPrivateAddress),
-          PrivateKeyStoreError,
+          store.retrieveSessionKey(
+            sessionKeyPair.sessionKey.keyId,
+            privateAddress,
+            peerPrivateAddress,
+          ),
+          KeyStoreError,
         );
 
         expect(error.message).toContain('Failed to decrypt session key with KMS');
@@ -1009,6 +1144,7 @@ describe('Session keys', () => {
     function makeDatastoreClient(
       keyDocumentOrError: SessionKeyEntity | Error | null = {
         creationDate: new Date(),
+        privateAddress,
         privateKeyCiphertext: Buffer.from([]),
       },
     ): Datastore {
