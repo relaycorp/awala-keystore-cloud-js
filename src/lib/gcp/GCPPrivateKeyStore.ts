@@ -30,6 +30,11 @@ const SESSION_KEY_INDEX_EXCLUSIONS: ReadonlyArray<keyof SessionKeyEntity> = [
   'privateKeyCiphertext',
 ];
 
+interface ADDRequestParams {
+  readonly additionalAuthenticatedData: Buffer;
+  readonly additionalAuthenticatedDataCrc32c: { readonly value: number };
+}
+
 export class GCPPrivateKeyStore extends PrivateKeyStore {
   constructor(
     protected kmsClient: KeyManagementServiceClient,
@@ -101,11 +106,16 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     peerPrivateAddress?: string,
   ): Promise<void> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
+    const privateKeyCiphertext = await this.encryptSessionPrivateKey(
+      keySerialized,
+      privateAddress,
+      peerPrivateAddress,
+    );
     const data: SessionKeyEntity = {
       creationDate: new Date(),
       peerPrivateAddress,
       privateAddress,
-      privateKeyCiphertext: await this.encryptSessionPrivateKey(keySerialized),
+      privateKeyCiphertext,
     };
     await wrapGCPCallError(
       this.datastoreClient.save(
@@ -126,12 +136,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       return null;
     }
     const keyData: SessionKeyEntity = entity;
-    const keySerialized = await this.decryptSessionPrivateKey(keyData.privateKeyCiphertext);
-    return {
-      keySerialized,
-      peerPrivateAddress: keyData.peerPrivateAddress,
-      privateAddress: keyData.privateAddress,
-    };
+    const peerPrivateAddress = keyData.peerPrivateAddress;
+    const privateAddress = keyData.privateAddress;
+    const keySerialized = await this.decryptSessionPrivateKey(
+      keyData.privateKeyCiphertext,
+      privateAddress,
+      peerPrivateAddress,
+    );
+    return { keySerialized, peerPrivateAddress, privateAddress };
   }
 
   //region Identity key utilities
@@ -193,12 +205,21 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   //endregion
   //region Session key handling utilities
 
-  private async encryptSessionPrivateKey(keySerialized: Buffer): Promise<Buffer> {
+  private async encryptSessionPrivateKey(
+    keySerialized: Buffer,
+    privateAddress: string,
+    peerPrivateAddress?: string,
+  ): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
-    const plaintextCRC32C = calculateCRC32C(keySerialized);
+    const aadParams = getAADForEncryption(privateAddress, peerPrivateAddress);
     const [encryptResponse] = await wrapGCPCallError(
       this.kmsClient.encrypt(
-        { name: kmsKeyName, plaintext: keySerialized, plaintextCrc32c: { value: plaintextCRC32C } },
+        {
+          ...aadParams,
+          name: kmsKeyName,
+          plaintext: keySerialized,
+          plaintextCrc32c: { value: calculateCRC32C(keySerialized) },
+        },
         { timeout: 500 },
       ),
       'Failed to encrypt session key with KMS',
@@ -216,12 +237,18 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     return ciphertext;
   }
 
-  private async decryptSessionPrivateKey(privateKeyCiphertext: Buffer): Promise<Buffer> {
+  private async decryptSessionPrivateKey(
+    privateKeyCiphertext: Buffer,
+    privateAddress: string,
+    peerPrivateAddress?: string,
+  ): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
     const ciphertextCRC32C = calculateCRC32C(privateKeyCiphertext);
+    const aadParams = getAADForEncryption(privateAddress, peerPrivateAddress);
     const [decryptionResponse] = await wrapGCPCallError(
       this.kmsClient.decrypt(
         {
+          ...aadParams,
           ciphertext: privateKeyCiphertext,
           ciphertextCrc32c: { value: ciphertextCRC32C },
           name: kmsKeyName,
@@ -252,4 +279,17 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     // GCP client library already caches the project id.
     return this.kmsClient.getProjectId();
   }
+}
+
+function getAADForEncryption(
+  privateAddress: string,
+  peerPrivateAddress?: string,
+): ADDRequestParams {
+  const additionalAuthenticatedData = Buffer.from(
+    peerPrivateAddress ? `${privateAddress},${peerPrivateAddress}` : privateAddress,
+  );
+  const additionalAuthenticatedDataCrc32c = {
+    value: calculateCRC32C(additionalAuthenticatedData),
+  };
+  return { additionalAuthenticatedData, additionalAuthenticatedDataCrc32c };
 }

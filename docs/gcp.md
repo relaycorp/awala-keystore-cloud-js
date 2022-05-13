@@ -4,14 +4,14 @@ permalink: /gcp
 ---
 # Google Cloud Platform (GCP)
 
-The GCP keystores only use Cloud KMS and Firestore in Datastore mode, both of which are serverless and fully managed by Google, so you don't need to worry about up/down scaling or uptime/performance monitoring.
+The GCP keystores only use [Cloud KMS](https://cloud.google.com/kms) and [Firestore](https://cloud.google.com/firestore) in Datastore mode, both of which are serverless and fully managed by Google, so you don't need to worry about up/down scaling or uptime/performance monitoring.
 
 Sensitive cryptographic material is protected with Cloud KMS as follows:
 
 - Awala identity key pairs (used for digital signatures) are stored in and fully managed by Cloud KMS. Cloud KMS performs all the cryptographic operations. Neither this library nor the app using it can access the private key.
-- Awala session key pairs (used for encryption) are stored in Datastore, encrypted with a customer-managed KMS encryption key. We wish these too were stored in KMS, but [KMS doesn't currently support the algorithms we require](https://issuetracker.google.com/issues/231334600).
+- Awala session key pairs (used for encryption) are stored in Datastore, encrypted with a customer-managed KMS key and using [Additional Authenticated Data (AAD)](https://github.com/relaycorp/awala-keystore-cloud-js/issues/6) for extra security. We wish these too were stored in KMS, but [KMS doesn't currently support the algorithms we require](https://issuetracker.google.com/issues/231334600).
 
-As of this writing, the library complies with all of [KMS' data integrity guidelines](https://cloud.google.com/kms/docs/data-integrity-guidelines), but [our use of encryption keys doesn't yet use additional authenticated data (AAD)](https://github.com/relaycorp/awala-keystore-cloud-js/issues/6) for extra security.
+As of this writing, the library complies with all of [KMS' data integrity guidelines](https://cloud.google.com/kms/docs/data-integrity-guidelines).
 
 Datastore is used to store the remaining data.
 
@@ -32,7 +32,7 @@ This library will provision and manage the following resources:
 
 ## Recommendations
 
-- Rotate KMS encryption key versions periodically.
+- [Rotate KMS encryption key versions periodically](https://cloud.google.com/kms/docs/key-rotation).
 - Monitor your Cloud KMS and Datastore quotas, to request increases when/if necessary.
 
 ## IAM Permissions

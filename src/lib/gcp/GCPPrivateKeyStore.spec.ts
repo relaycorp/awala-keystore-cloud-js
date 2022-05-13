@@ -735,7 +735,7 @@ describe('Session keys', () => {
       });
 
       test('KMS should encrypt with the specified key', async () => {
-        const kmsKeyName = 'this/is/not/even/well-formed';
+        const kmsKeyName = `${kmsSessionKeyPath}-not/cryptoKeyVersions/1`;
         const store = new GCPPrivateKeyStore(
           makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
           makeDatastoreClient(),
@@ -754,24 +754,49 @@ describe('Session keys', () => {
         expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
       });
 
-      test('KMS should encrypt with a similarly-named key', async () => {
-        const kmsKeyName = `${kmsSessionKeyPath}-not/cryptoKeyVersions/1`;
-        const store = new GCPPrivateKeyStore(
-          makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
-          makeDatastoreClient(),
-          KMS_CONFIG,
+      test('AAD should be node private address if key is unbound', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.saveSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
         );
 
-        const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
-          KeyStoreError,
+        const additionalAuthenticatedData = Buffer.from(privateAddress);
+        expect(kmsClient.encrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            additionalAuthenticatedData,
+            additionalAuthenticatedDataCrc32c: {
+              value: calculateCRC32C(additionalAuthenticatedData),
+            },
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('ADD should be node and peer private address if key is bound', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.saveSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
         );
 
-        expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
+        const additionalAuthenticatedData = Buffer.from(`${privateAddress},${peerPrivateAddress}`);
+        expect(kmsClient.encrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            additionalAuthenticatedData,
+            additionalAuthenticatedDataCrc32c: {
+              value: calculateCRC32C(additionalAuthenticatedData),
+            },
+          }),
+          expect.anything(),
+        );
       });
 
       test('Request should time out after 500ms', async () => {
@@ -1078,6 +1103,59 @@ describe('Session keys', () => {
 
         expect(error.cause()?.message).toEqual(
           'Plaintext CRC32C checksum does not match that from KMS',
+        );
+      });
+
+      test('AAD should be node private address if key is unbound', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, makeDatastoreClient(), KMS_CONFIG);
+
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
+
+        const additionalAuthenticatedData = Buffer.from(privateAddress);
+        expect(kmsClient.decrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            additionalAuthenticatedData,
+            additionalAuthenticatedDataCrc32c: {
+              value: calculateCRC32C(additionalAuthenticatedData),
+            },
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('ADD should be node and peer private address if key is bound', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(
+          kmsClient,
+          makeDatastoreClient({
+            creationDate: new Date(),
+            peerPrivateAddress,
+            privateAddress,
+            privateKeyCiphertext: Buffer.from('ciphertext'),
+          }),
+          KMS_CONFIG,
+        );
+
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
+
+        const additionalAuthenticatedData = Buffer.from(`${privateAddress},${peerPrivateAddress}`);
+        expect(kmsClient.decrypt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            additionalAuthenticatedData,
+            additionalAuthenticatedDataCrc32c: {
+              value: calculateCRC32C(additionalAuthenticatedData),
+            },
+          }),
+          expect.anything(),
         );
       });
 
