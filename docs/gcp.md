@@ -17,23 +17,18 @@ Datastore is used to store the remaining data.
 
 ## Resources
 
-You should provision the following:
+You should provision the following in GCP:
 
 - A KMS key ring containing the following keys:
   - An **asymmetric signing key** (RSA-PSS, 2048 or 4096 bits, and SHA-256 or SHA-512). Do not provision a key version as it wouldn't be used. The library will use `RSA_SIGN_PSS_2048_SHA256` by default.
   - A **symmetric encryption key**, along with a key version.
-- Firestore configured in Datastore mode.
-- GCP service account.
+- A service account.
+- Configure Firestore to operate in Datastore mode.
 
 This library will provision and manage the following resources:
 
 - Key versions in the KMS signing key.
 - The Datastore kinds `identity_keys` and `session_keys` under the specified namespace.
-
-## Recommendations
-
-- [Rotate KMS encryption key versions periodically](https://cloud.google.com/kms/docs/key-rotation).
-- Monitor your Cloud KMS and Datastore quotas, to request increases when/if necessary.
 
 ## IAM Permissions
 
@@ -64,6 +59,11 @@ Session keys:
   - `cloudkms.cryptoKeyVersions.useToDecrypt` on the KMS encryption key.
 - Encrypt or decrypt with key pair: No additional permissions needed once key pair is in memory.
 
+## Recommendations
+
+- [Rotate KMS encryption key versions periodically](https://cloud.google.com/kms/docs/key-rotation).
+- Monitor your Cloud KMS and Datastore quotas, to request increases when/if necessary.
+
 ## Limitations
 
-- All the GCP resources must be located in the same GCP project and region.
+- All the GCP resources must be located in the same project and region.
