@@ -83,12 +83,18 @@ describe('Private key store', () => {
   });
 
   test('Save and retrieve session key', async () => {
+    const privateAddress = '0deadbeef';
+    const peerPrivateAddress = '0deadc0de';
     const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, getKMSConfig());
     const { privateKey, sessionKey } = await SessionKeyPair.generate();
 
-    await store.saveUnboundSessionKey(privateKey, sessionKey.keyId);
+    await store.saveSessionKey(privateKey, sessionKey.keyId, privateAddress, peerPrivateAddress);
 
-    const privateKeyRetrieved = await store.retrieveSessionKey(sessionKey.keyId, '0deadbeef');
+    const privateKeyRetrieved = await store.retrieveSessionKey(
+      sessionKey.keyId,
+      privateAddress,
+      peerPrivateAddress,
+    );
     await expect(derSerializePrivateKey(privateKeyRetrieved)).resolves.toEqual(
       await derSerializePrivateKey(privateKey),
     );

@@ -26,6 +26,7 @@ export interface KMSConfig {
 
 const SESSION_KEY_INDEX_EXCLUSIONS: ReadonlyArray<keyof SessionKeyEntity> = [
   'peerPrivateAddress',
+  'privateAddress',
   'privateKeyCiphertext',
 ];
 
@@ -96,12 +97,14 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
   protected async saveSessionKeySerialized(
     keyId: string,
     keySerialized: Buffer,
+    privateAddress: string,
     peerPrivateAddress?: string,
   ): Promise<void> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
     const data: SessionKeyEntity = {
       creationDate: new Date(),
       peerPrivateAddress,
+      privateAddress,
       privateKeyCiphertext: await this.encryptSessionPrivateKey(keySerialized),
     };
     await wrapGCPCallError(
@@ -124,7 +127,11 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     }
     const keyData: SessionKeyEntity = entity;
     const keySerialized = await this.decryptSessionPrivateKey(keyData.privateKeyCiphertext);
-    return { keySerialized, peerPrivateAddress: keyData.peerPrivateAddress };
+    return {
+      keySerialized,
+      peerPrivateAddress: keyData.peerPrivateAddress,
+      privateAddress: keyData.privateAddress,
+    };
   }
 
   //region Identity key utilities

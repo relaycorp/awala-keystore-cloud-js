@@ -43,7 +43,7 @@
   "dependencies": {
     "@google-cloud/datastore": "^6.6.2",
     "@google-cloud/kms": "^2.11.1",
-    "@relaycorp/relaynet-core": "^1.77.1",
+    "@relaycorp/relaynet-core": "^1.78.0",
     "fast-crc32c": "^2.0.0",
     "webcrypto-core": "^1.7.3"
   },
