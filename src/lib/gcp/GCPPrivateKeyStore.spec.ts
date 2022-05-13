@@ -735,26 +735,6 @@ describe('Session keys', () => {
       });
 
       test('KMS should encrypt with the specified key', async () => {
-        const kmsKeyName = 'this/is/not/even/well-formed';
-        const store = new GCPPrivateKeyStore(
-          makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
-          makeDatastoreClient(),
-          KMS_CONFIG,
-        );
-
-        const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
-          KeyStoreError,
-        );
-
-        expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
-      });
-
-      test('KMS should encrypt with a similarly-named key', async () => {
         const kmsKeyName = `${kmsSessionKeyPath}-not/cryptoKeyVersions/1`;
         const store = new GCPPrivateKeyStore(
           makeKMSClient({ kmsKeyVersionName: kmsKeyName }),
