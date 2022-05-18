@@ -45,7 +45,7 @@
     "@google-cloud/kms": "^2.11.1",
     "@relaycorp/relaynet-core": "^1.78.1",
     "fast-crc32c": "^2.0.0",
-    "webcrypto-core": "^1.7.3"
+    "webcrypto-core": "^1.7.5"
   },
   "peerDependencies": {
     "@relaycorp/relaynet-core": "< 2.0"
