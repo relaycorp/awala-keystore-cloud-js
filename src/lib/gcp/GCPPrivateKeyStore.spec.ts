@@ -1023,7 +1023,7 @@ describe('Session keys', () => {
         KeyStoreError,
       );
 
-      expect(error.cause()?.message).toStartWith('Failed to retrieve key');
+      expect(error.cause()?.message).toStartWith('Failed to retrieve key from Datastore:');
       expect((error.cause() as GCPKeystoreError).cause()).toEqual(callError);
     });
 

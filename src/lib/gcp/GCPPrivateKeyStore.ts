@@ -130,7 +130,7 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
     const [entity] = await wrapGCPCallError(
       this.datastoreClient.get(datastoreKey, { gaxOptions: { timeout: 500 } }),
-      'Failed to retrieve key',
+      'Failed to retrieve key from Datastore',
     );
     if (!entity) {
       return null;
