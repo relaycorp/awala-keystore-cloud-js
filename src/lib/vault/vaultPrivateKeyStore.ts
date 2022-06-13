@@ -10,7 +10,7 @@ import axios, { AxiosInstance } from 'axios';
 import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 
-import { base64Decode, base64Encode } from './base64';
+import { base64Decode, base64Encode } from '../utils/base64';
 import { VaultStoreError } from './VaultStoreError';
 
 interface BaseKeyDataEncoded {
