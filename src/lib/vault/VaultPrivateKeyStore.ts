@@ -11,33 +11,13 @@ import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 
 import { base64Decode, base64Encode } from '../utils/base64';
+import {
+  KeyDataDecoded,
+  KeyDataEncoded,
+  SessionKeyDataDecoded,
+  SessionKeyDataEncoded,
+} from './keyData';
 import { VaultStoreError } from './VaultStoreError';
-
-interface BaseKeyDataEncoded {
-  readonly privateKey: string;
-}
-
-interface IdentityKeyDataEncoded extends BaseKeyDataEncoded {}
-
-interface SessionKeyDataEncoded extends BaseKeyDataEncoded {
-  readonly privateAddress: string;
-  readonly peerPrivateAddress?: string;
-}
-
-type KeyDataEncoded = IdentityKeyDataEncoded | SessionKeyDataEncoded;
-
-interface BaseKeyDataDecoded {
-  readonly privateKey: Buffer;
-}
-
-interface IdentityKeyDataDecoded extends BaseKeyDataDecoded {}
-
-interface SessionKeyDataDecoded extends BaseKeyDataDecoded {
-  readonly peerPrivateAddress: string;
-  readonly privateAddress: string;
-}
-
-type KeyDataDecoded = IdentityKeyDataDecoded | SessionKeyDataDecoded;
 
 export class VaultPrivateKeyStore extends PrivateKeyStore {
   protected readonly axiosClient: AxiosInstance;

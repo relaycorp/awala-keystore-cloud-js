@@ -12,7 +12,7 @@ import * as https from 'https';
 
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { base64Encode } from '../utils/base64';
-import { VaultPrivateKeyStore } from './vaultPrivateKeyStore';
+import { VaultPrivateKeyStore } from './VaultPrivateKeyStore';
 
 describe('VaultPrivateKeyStore', () => {
   const mockAxiosCreate = jest.spyOn(axios, 'create');
