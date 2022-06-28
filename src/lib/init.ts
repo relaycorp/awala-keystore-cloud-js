@@ -27,16 +27,16 @@ export function initGCPKeystore(): GCPPrivateKeyStore {
   });
   const kmsConfig = {
     location: getEnvVar('KS_GCP_LOCATION').required().asString(),
-    keyRing: getEnvVar('KS_PRIV_KMS_KEYRING').required().asString(),
-    identityKeyId: getEnvVar('KS_PRIV_KMS_ID_KEY').required().asString(),
-    sessionEncryptionKeyId: getEnvVar('KS_PRIV_KMS_SESSION_ENC_KEY').required().asString(),
+    keyRing: getEnvVar('KS_KMS_KEYRING').required().asString(),
+    identityKeyId: getEnvVar('KS_KMS_ID_KEY').required().asString(),
+    sessionEncryptionKeyId: getEnvVar('KS_KMS_SESSION_ENC_KEY').required().asString(),
   };
   return new GCPPrivateKeyStore(new KeyManagementServiceClient(), datastore, kmsConfig);
 }
 
 export function initVaultKeystore(): VaultPrivateKeyStore {
-  const vaultUrl = getEnvVar('VAULT_URL').required().asString();
-  const vaultToken = getEnvVar('VAULT_TOKEN').required().asString();
-  const vaultKvPath = getEnvVar('VAULT_KV_PREFIX').required().asString();
+  const vaultUrl = getEnvVar('KS_VAULT_URL').required().asString();
+  const vaultToken = getEnvVar('KS_VAULT_TOKEN').required().asString();
+  const vaultKvPath = getEnvVar('KS_VAULT_KV_PREFIX').required().asString();
   return new VaultPrivateKeyStore(vaultUrl, vaultToken, vaultKvPath);
 }

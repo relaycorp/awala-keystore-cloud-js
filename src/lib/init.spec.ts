@@ -13,6 +13,8 @@ jest.mock('./vault/VaultPrivateKeyStore');
 jest.mock('./gcp/GCPPrivateKeyStore');
 
 describe('initPrivateKeyStoreFromEnv', () => {
+  const mockEnvVars = configureMockEnvVars();
+
   test('Unknown adapter should be refused', () => {
     const invalidAdapter = 'potato';
     expect(() => initPrivateKeystoreFromEnv(invalidAdapter as any)).toThrowWithMessage(
@@ -22,17 +24,19 @@ describe('initPrivateKeyStoreFromEnv', () => {
   });
 
   describe('Vault', () => {
-    const BASE_ENV_VARS = {
-      VAULT_KV_PREFIX: 'kv-prefix',
-      VAULT_TOKEN: 'token',
-      VAULT_URL: 'http://hi.lol',
+    const ENV_VARS = {
+      KS_VAULT_KV_PREFIX: 'kv-prefix',
+      KS_VAULT_TOKEN: 'token',
+      KS_VAULT_URL: 'http://hi.lol',
     };
-    const mockEnvVars = configureMockEnvVars(BASE_ENV_VARS);
+    beforeEach(() => {
+      mockEnvVars(ENV_VARS);
+    });
 
-    test.each(Object.getOwnPropertyNames(BASE_ENV_VARS))(
+    test.each(Object.getOwnPropertyNames(ENV_VARS))(
       'Environment variable %s should be present',
       (envVar) => {
-        mockEnvVars({ ...BASE_ENV_VARS, [envVar]: undefined });
+        mockEnvVars({ ...ENV_VARS, [envVar]: undefined });
 
         expect(() => initPrivateKeystoreFromEnv(Adapter.VAULT)).toThrowWithMessage(
           EnvVarError,
@@ -46,27 +50,29 @@ describe('initPrivateKeyStoreFromEnv', () => {
 
       expect(keyStore).toBeInstanceOf(vaultKeystore.VaultPrivateKeyStore);
       expect(vaultKeystore.VaultPrivateKeyStore).toBeCalledWith(
-        BASE_ENV_VARS.VAULT_URL,
-        BASE_ENV_VARS.VAULT_TOKEN,
-        BASE_ENV_VARS.VAULT_KV_PREFIX,
+        ENV_VARS.KS_VAULT_URL,
+        ENV_VARS.KS_VAULT_TOKEN,
+        ENV_VARS.KS_VAULT_KV_PREFIX,
       );
     });
   });
 
   describe('GPC', () => {
-    const BASE_ENV_VARS = {
+    const ENV_VARS = {
       KS_GCP_LOCATION: 'westeros-3',
       KS_DATASTORE_NS: 'the-namespace',
-      KS_PRIV_KMS_KEYRING: 'my-precious',
-      KS_PRIV_KMS_ID_KEY: 'id',
-      KS_PRIV_KMS_SESSION_ENC_KEY: 'session',
+      KS_KMS_KEYRING: 'my-precious',
+      KS_KMS_ID_KEY: 'id',
+      KS_KMS_SESSION_ENC_KEY: 'session',
     };
-    const mockEnvVars = configureMockEnvVars(BASE_ENV_VARS);
+    beforeEach(() => {
+      mockEnvVars(ENV_VARS);
+    });
 
-    test.each(Object.getOwnPropertyNames(BASE_ENV_VARS))(
+    test.each(Object.getOwnPropertyNames(ENV_VARS))(
       'Environment variable %s should be present',
       (envVar) => {
-        mockEnvVars({ ...BASE_ENV_VARS, [envVar]: undefined });
+        mockEnvVars({ ...ENV_VARS, [envVar]: undefined });
 
         expect(() => initPrivateKeystoreFromEnv(Adapter.GCP)).toThrowWithMessage(
           EnvVarError,
@@ -81,12 +87,12 @@ describe('initPrivateKeyStoreFromEnv', () => {
       expect(keyStore).toBeInstanceOf(gcpKeystore.GCPPrivateKeyStore);
       expect(gcpKeystore.GCPPrivateKeyStore).toBeCalledWith(
         expect.any(KeyManagementServiceClient),
-        expect.toSatisfy<Datastore>((d) => d.namespace === BASE_ENV_VARS.KS_DATASTORE_NS),
+        expect.toSatisfy<Datastore>((d) => d.namespace === ENV_VARS.KS_DATASTORE_NS),
         expect.objectContaining<gcpKeystore.KMSConfig>({
-          identityKeyId: BASE_ENV_VARS.KS_PRIV_KMS_ID_KEY,
-          keyRing: BASE_ENV_VARS.KS_PRIV_KMS_KEYRING,
-          location: BASE_ENV_VARS.KS_GCP_LOCATION,
-          sessionEncryptionKeyId: BASE_ENV_VARS.KS_PRIV_KMS_SESSION_ENC_KEY,
+          identityKeyId: ENV_VARS.KS_KMS_ID_KEY,
+          keyRing: ENV_VARS.KS_KMS_KEYRING,
+          location: ENV_VARS.KS_GCP_LOCATION,
+          sessionEncryptionKeyId: ENV_VARS.KS_KMS_SESSION_ENC_KEY,
         }),
       );
     });
