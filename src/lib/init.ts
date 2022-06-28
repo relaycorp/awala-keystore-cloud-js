@@ -1,15 +1,15 @@
-import { PrivateKeyStore } from '@relaycorp/relaynet-core';
 import { get as getEnvVar } from 'env-var';
 
 import { Adapter } from './Adapter';
 import { VaultPrivateKeyStore } from './vault/VaultPrivateKeyStore';
 import { CloudKeystoreError } from './CloudKeystoreError';
+import { CloudPrivateKeystore } from './CloudPrivateKeystore';
 
 const ADAPTER_INITIALISERS = {
   [Adapter.VAULT]: initVaultKeystore,
 };
 
-export function initPrivateKeystoreFromEnv(adapter: Adapter): PrivateKeyStore {
+export function initPrivateKeystoreFromEnv(adapter: Adapter): CloudPrivateKeystore {
   const init = ADAPTER_INITIALISERS[adapter];
   if (!init) {
     throw new CloudKeystoreError(`Invalid private keystore adapter (${adapter})`);

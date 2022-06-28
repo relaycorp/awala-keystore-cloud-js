@@ -428,4 +428,13 @@ describe('VaultPrivateKeyStore', () => {
       };
     }
   });
+
+  describe('close', () => {
+    test('Close method should do nothing', async () => {
+      mockAxiosCreate.mockReturnValue({ interceptors: { response: { use: jest.fn() } } } as any);
+      const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+      await store.close();
+    });
+  });
 });

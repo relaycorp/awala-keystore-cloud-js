@@ -3,7 +3,6 @@
 import {
   derDeserializeRSAPrivateKey,
   derSerializePrivateKey,
-  PrivateKeyStore,
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
 import axios, { AxiosInstance } from 'axios';
@@ -18,8 +17,9 @@ import {
   SessionKeyDataEncoded,
 } from './keyData';
 import { VaultStoreError } from './VaultStoreError';
+import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
 
-export class VaultPrivateKeyStore extends PrivateKeyStore {
+export class VaultPrivateKeyStore extends CloudPrivateKeystore {
   protected readonly axiosClient: AxiosInstance;
 
   constructor(vaultUrl: string, vaultToken: string, kvPath: string) {
@@ -48,6 +48,10 @@ export class VaultPrivateKeyStore extends PrivateKeyStore {
       return null;
     }
     return derDeserializeRSAPrivateKey(keyData.privateKey);
+  }
+
+  public async close(): Promise<void> {
+    // There are no resources to release
   }
 
   protected async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {
