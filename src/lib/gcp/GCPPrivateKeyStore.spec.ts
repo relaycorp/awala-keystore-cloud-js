@@ -1238,6 +1238,23 @@ describe('Session keys', () => {
   });
 });
 
+describe('close', () => {
+  test('KMS client should be closed', async () => {
+    const kmsClient = makeKMSClient();
+    const store = new GCPPrivateKeyStore(kmsClient, null as any, KMS_CONFIG);
+
+    await store.close();
+
+    expect(kmsClient.close).toBeCalled();
+  });
+
+  function makeKMSClient(): KeyManagementServiceClient {
+    const kmsClient = new KeyManagementServiceClient();
+    jest.spyOn(kmsClient, 'close').mockImplementation(async () => undefined);
+    return kmsClient;
+  }
+});
+
 function makeKmsClientWithMockProject(): KeyManagementServiceClient {
   const kmsClient = new KeyManagementServiceClient();
   jest.spyOn(kmsClient, 'getProjectId').mockImplementation(() => GCP_PROJECT);

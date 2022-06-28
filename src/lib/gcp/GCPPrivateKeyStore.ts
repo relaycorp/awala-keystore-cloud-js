@@ -4,7 +4,6 @@ import {
   derDeserializeRSAPublicKey,
   getPrivateAddressFromIdentityKey,
   IdentityKeyPair,
-  PrivateKeyStore,
   RSAKeyGenOptions,
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
@@ -16,6 +15,7 @@ import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
 import { retrieveKMSPublicKey } from './kmsUtils';
+import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
 
 export interface KMSConfig {
   readonly location: string;
@@ -35,7 +35,7 @@ interface ADDRequestParams {
   readonly additionalAuthenticatedDataCrc32c: { readonly value: number };
 }
 
-export class GCPPrivateKeyStore extends PrivateKeyStore {
+export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   constructor(
     protected kmsClient: KeyManagementServiceClient,
     protected datastoreClient: Datastore,
@@ -93,6 +93,10 @@ export class GCPPrivateKeyStore extends PrivateKeyStore {
       keyDocument.version,
     );
     return new GcpKmsRsaPssPrivateKey(kmsKeyPath);
+  }
+
+  public async close(): Promise<void> {
+    await this.kmsClient.close();
   }
 
   protected async saveIdentityKey(): Promise<void> {
