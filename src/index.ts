@@ -1,3 +1,3 @@
-export { GCPPrivateKeyStore } from './lib/gcp/GCPPrivateKeyStore';
-
-export { VaultPrivateKeyStore } from './lib/vault/VaultPrivateKeyStore';
+export { Adapter } from './lib/Adapter';
+export { initPrivateKeystoreFromEnv } from './lib/init';
+export { CloudKeystoreError } from './lib/CloudKeystoreError';

@@ -1,3 +1,3 @@
-import { RelaynetError } from '@relaycorp/relaynet-core';
+import { CloudKeystoreError } from '../CloudKeystoreError';
 
-export class GCPKeystoreError extends RelaynetError {}
+export class GCPKeystoreError extends CloudKeystoreError {}
