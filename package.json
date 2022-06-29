@@ -43,14 +43,15 @@
   "dependencies": {
     "@google-cloud/datastore": "^7.0.0",
     "@google-cloud/kms": "^3.0.0",
-    "@relaycorp/relaynet-core": "^1.81.0",
+    "@relaycorp/relaynet-core": "^1.81.1",
     "axios": "^0.27.2",
     "env-var": "^7.1.1",
     "fast-crc32c": "^2.0.0",
     "webcrypto-core": "^1.7.3"
   },
   "peerDependencies": {
-    "@relaycorp/relaynet-core": "< 2.0"
+    "@relaycorp/relaynet-core": "< 2.0",
+    "webcrypto-core": "< 2.0"
   },
   "devDependencies": {
     "@relaycorp/shared-config": "^1.8.0",

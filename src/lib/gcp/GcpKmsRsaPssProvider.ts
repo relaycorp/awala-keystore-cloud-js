@@ -15,7 +15,7 @@ const SUPPORTED_SALT_LENGTHS: readonly number[] = [
 ];
 
 export class GcpKmsRsaPssProvider extends RsaPssProvider {
-  constructor(protected kmsClient: KeyManagementServiceClient) {
+  constructor(public kmsClient: KeyManagementServiceClient) {
     super();
 
     // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms

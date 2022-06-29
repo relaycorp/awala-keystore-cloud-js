@@ -12,7 +12,10 @@ import * as kmsUtils from './kmsUtils';
 
 const ALGORITHM = { name: 'RSA-PSS', saltLength: 32 };
 
-const PRIVATE_KEY = new GcpKmsRsaPssPrivateKey('/the/path/key-name');
+const PRIVATE_KEY = new GcpKmsRsaPssPrivateKey(
+  '/the/path/key-name',
+  new GcpKmsRsaPssProvider(null as any),
+);
 
 describe('hashingAlgorithms', () => {
   test('Only SHA-256 and SHA-512 should be supported', async () => {

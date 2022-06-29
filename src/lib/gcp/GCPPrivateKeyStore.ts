@@ -16,6 +16,7 @@ import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
 import { retrieveKMSPublicKey } from './kmsUtils';
 import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
+import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 
 export interface KMSConfig {
   readonly location: string;
@@ -36,12 +37,16 @@ interface ADDRequestParams {
 }
 
 export class GCPPrivateKeyStore extends CloudPrivateKeystore {
+  public readonly idKeyProvider: GcpKmsRsaPssProvider;
+
   constructor(
     protected kmsClient: KeyManagementServiceClient,
     protected datastoreClient: Datastore,
     protected kmsConfig: KMSConfig,
   ) {
     super();
+
+    this.idKeyProvider = new GcpKmsRsaPssProvider(kmsClient);
   }
 
   public override async generateIdentityKeyPair(
@@ -57,7 +62,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
 
     const kmsKeyVersionPath = await this.createSigningKMSKeyVersion(kmsKeyName);
 
-    const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath);
+    const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath, this.idKeyProvider);
     const publicKeySerialized = await retrieveKMSPublicKey(
       privateKey.kmsKeyVersionPath,
       this.kmsClient,
@@ -92,7 +97,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
       keyDocument.key, // Ignore the KMS key in the constructor
       keyDocument.version,
     );
-    return new GcpKmsRsaPssPrivateKey(kmsKeyPath);
+    return new GcpKmsRsaPssPrivateKey(kmsKeyPath, this.idKeyProvider);
   }
 
   public async close(): Promise<void> {

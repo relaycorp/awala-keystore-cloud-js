@@ -43,6 +43,15 @@ describe('Identity keys', () => {
     );
   });
 
+  describe('idKeyProvider', () => {
+    test('Provider should reuse KMS client', () => {
+      const kmsClient = new KeyManagementServiceClient();
+      const store = new GCPPrivateKeyStore(kmsClient, new Datastore(), KMS_CONFIG);
+
+      expect(store.idKeyProvider.kmsClient).toBe(kmsClient);
+    });
+  });
+
   describe('generateIdentityKeyPair', () => {
     let stubPublicKey: CryptoKey;
     let stubPublicKeySerialized: ArrayBuffer;
@@ -270,6 +279,15 @@ describe('Identity keys', () => {
         );
       });
 
+      test('Private key should contain existing provider', async () => {
+        const store = new GCPPrivateKeyStore(makeKmsClient(), makeDatastoreClient(), KMS_CONFIG);
+
+        const { privateKey } = await store.generateIdentityKeyPair();
+
+        expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
+        expect((privateKey as GcpKmsRsaPssPrivateKey).provider).toBe(store.idKeyProvider);
+      });
+
       test('Private address should match public key', async () => {
         const store = new GCPPrivateKeyStore(makeKmsClient(), makeDatastoreClient(), KMS_CONFIG);
 
@@ -361,6 +379,19 @@ describe('Identity keys', () => {
       expect(datastoreClient.get).toHaveBeenCalledWith(
         datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]),
       );
+    });
+
+    test('Key should contain existing provider', async () => {
+      const store = new GCPPrivateKeyStore(
+        makeKmsClientWithMockProject(),
+        makeDatastoreClient(),
+        KMS_CONFIG,
+      );
+
+      const privateKey = await store.retrieveIdentityKey('0deadbeef');
+
+      expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
+      expect((privateKey as GcpKmsRsaPssPrivateKey).provider).toBe(store.idKeyProvider);
     });
 
     test('Stored key name should override that of configuration', async () => {
