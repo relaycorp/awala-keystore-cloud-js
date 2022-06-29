@@ -12,6 +12,35 @@ The library is available on NPM as [`@relaycorp/awala-keystore-cloud`](https://w
 npm i @relaycorp/awala-keystore-cloud
 ```
 
+### Initialising the private key store
+
+The configuration of the adapter is done via environment variables, so the actual initialisation of the store is done with a simple function call. For example:
+
+```typescript
+import {
+  Adapter,
+  initPrivateKeystoreFromEnv,
+} from '@relaycorp/awala-keystore-cloud';
+import { PrivateKeyStore } from '@relaycorp/relaynet-core';
+
+async function initPrivateKeystore(): Promise<PrivateKeyStore> {
+  return initPrivateKeystoreFromEnv(Adapter.GCP);
+}
+```
+
+The following environment variables must be defined depending on the adapter:
+
+- GCP:
+  - `KS_GCP_LOCATION` (for example, `europe-west3`).
+  - `KS_KMS_KEYRING`: The KMS keyring holding all the keys to be used.
+  - `KS_KMS_ID_KEY`: The name of the KMS key whose versions will back Awala identity keys.
+  - `KS_KMS_SESSION_ENC_KEY`: The name of the KMS key used to encrypt Awala session keys.
+  - `KS_DATASTORE_NS`: The Datastore namespace to host all the key-related data.
+- Vault:
+  - `KS_VAULT_URL`: The URL to Vault.
+  - `KS_VAULT_TOKEN`: The user's access token.
+  - `KS_VAULT_KV_PREFIX`: The path prefix for the key-value backend.
+
 ## Development
 
 The unit test suite can be run the standard way on Node.js: `npm test`.
