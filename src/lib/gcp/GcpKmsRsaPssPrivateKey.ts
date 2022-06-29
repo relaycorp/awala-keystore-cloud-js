@@ -1,10 +1,12 @@
-import { CryptoKey } from 'webcrypto-core';
+import { PrivateKey } from '@relaycorp/relaynet-core';
 
-export class GcpKmsRsaPssPrivateKey extends CryptoKey {
-  constructor(public kmsKeyVersionPath: string) {
-    super();
+import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+
+export class GcpKmsRsaPssPrivateKey extends PrivateKey {
+  constructor(public kmsKeyVersionPath: string, provider: GcpKmsRsaPssProvider) {
+    super(provider);
+
     this.algorithm = { name: 'RSA-PSS' };
-    this.type = 'private';
     this.usages = ['sign'];
     this.extractable = true; // The public key is exportable
   }

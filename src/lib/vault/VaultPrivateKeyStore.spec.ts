@@ -12,7 +12,7 @@ import * as https from 'https';
 
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { base64Encode } from '../utils/base64';
-import { VaultPrivateKeyStore } from './vaultPrivateKeyStore';
+import { VaultPrivateKeyStore } from './VaultPrivateKeyStore';
 
 describe('VaultPrivateKeyStore', () => {
   const mockAxiosCreate = jest.spyOn(axios, 'create');
@@ -427,5 +427,14 @@ describe('VaultPrivateKeyStore', () => {
         status,
       };
     }
+  });
+
+  describe('close', () => {
+    test('Close method should do nothing', async () => {
+      mockAxiosCreate.mockReturnValue({ interceptors: { response: { use: jest.fn() } } } as any);
+      const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+      await store.close();
+    });
   });
 });
