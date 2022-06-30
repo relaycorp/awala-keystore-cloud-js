@@ -1,4 +1,5 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { derSerializePublicKey, generateRSAKeyPair } from '@relaycorp/relaynet-core';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey } from 'webcrypto-core';
 
@@ -7,7 +8,6 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
-import { derSerializePublicKey, generateRSAKeyPair } from '@relaycorp/relaynet-core';
 
 const ALGORITHM = { name: 'RSA-PSS', saltLength: 32 };
 
