@@ -7,6 +7,14 @@ export interface IdentityKeyEntity {
   readonly key: string;
 
   readonly version: string;
+
+  /**
+   * The DER serialization of the respective public key.
+   *
+   * The main reason to cache it is to be able to populate the key algorithm on a private key,
+   * not to save an API call to KMS (though that's still nice!).
+   */
+  readonly publicKey: Buffer;
 }
 
 export interface SessionKeyEntity {
