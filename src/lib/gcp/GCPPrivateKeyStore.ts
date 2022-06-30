@@ -2,6 +2,7 @@ import { Datastore } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
   derDeserializeRSAPublicKey,
+  derSerializePublicKey,
   getPrivateAddressFromIdentityKey,
   IdentityKeyPair,
   RSAKeyGenOptions,
@@ -62,15 +63,12 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
 
     const kmsKeyVersionPath = await this.createSigningKMSKeyVersion(kmsKeyName);
 
-    const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath, this.idKeyProvider);
-    const publicKeySerialized = await retrieveKMSPublicKey(
-      privateKey.kmsKeyVersionPath,
-      this.kmsClient,
-    );
+    const publicKeySerialized = await retrieveKMSPublicKey(kmsKeyVersionPath, this.kmsClient);
     const publicKey = await derDeserializeRSAPublicKey(publicKeySerialized);
+    const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath, publicKey, this.idKeyProvider);
     const privateAddress = await getPrivateAddressFromIdentityKey(publicKey);
 
-    await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress);
+    await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress, publicKey);
 
     return { privateAddress, privateKey, publicKey };
   }
@@ -97,7 +95,8 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
       keyDocument.key, // Ignore the KMS key in the constructor
       keyDocument.version,
     );
-    return new GcpKmsRsaPssPrivateKey(kmsKeyPath, this.idKeyProvider);
+    const publicKey = await derDeserializeRSAPublicKey(keyDocument.publicKey);
+    return new GcpKmsRsaPssPrivateKey(kmsKeyPath, publicKey, this.idKeyProvider);
   }
 
   public async close(): Promise<void> {
@@ -190,10 +189,12 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   private async linkKMSKeyVersion(
     kmsKeyVersionPath: string,
     privateAddress: string,
+    publicKey: CryptoKey,
   ): Promise<void> {
     const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
     const identityKeyEntity: IdentityKeyEntity = {
       key: this.kmsConfig.identityKeyId,
+      publicKey: await derSerializePublicKey(publicKey),
       version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
         kmsKeyVersionPath,
       ) as string,
@@ -202,7 +203,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
       this.datastoreClient.save(
         {
           data: identityKeyEntity,
-          excludeFromIndexes: ['version', 'key'],
+          excludeFromIndexes: ['key', 'publicKey', 'version'],
           key: datastoreKey,
         },
         { timeout: 500 },

@@ -1,4 +1,5 @@
 import { KeyManagementServiceClient } from '@google-cloud/kms';
+import { derSerializePublicKey } from '@relaycorp/relaynet-core';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { CryptoKey, RsaPssProvider } from 'webcrypto-core';
 
@@ -6,7 +7,6 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
-import { retrieveKMSPublicKey } from './kmsUtils';
 
 // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms
 const SUPPORTED_SALT_LENGTHS: readonly number[] = [
@@ -37,7 +37,8 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     if (!(key instanceof GcpKmsRsaPssPrivateKey)) {
       throw new GCPKeystoreError('Key is not managed by KMS');
     }
-    return retrieveKMSPublicKey(key.kmsKeyVersionPath, this.kmsClient);
+    const keySerialized = await derSerializePublicKey(key.publicKey);
+    return bufferToArrayBuffer(keySerialized);
   }
 
   public async onSign(

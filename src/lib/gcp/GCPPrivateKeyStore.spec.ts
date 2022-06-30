@@ -3,9 +3,9 @@
 import { Datastore } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
+  derDeserializeRSAPublicKey,
   derSerializePrivateKey,
   derSerializePublicKey,
-  generateRSAKeyPair,
   getPrivateAddressFromIdentityKey,
   KeyStoreError,
   SessionKeyPair,
@@ -32,6 +32,21 @@ const KMS_CONFIG: KMSConfig = {
 };
 
 describe('Identity keys', () => {
+  /**
+   * Actual public key exported from KMS.
+   *
+   * Copied here to avoid interoperability issues -- namely around the serialisation of
+   * `AlgorithmParams` (`NULL` vs absent).
+   */
+  const STUB_KMS_PUBLIC_KEY = Buffer.from(
+    'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnL8hQlf3GLajYh5NA6k7bpHPYUxjiZJgOEiDs8y1iPa6p' +
+      '/40p6OeFAakIgqNBZS4CfWnZQ8fPJxCN3ctRMOXQqyajkXHqcUO07shjlvJA9niPQfqpLF2izdSimqMdZkPDfOs4Q' +
+      '254+ZLld/JpGn4CocYMaACXWrT+sY4CWw0EJh2kWKcEWF9Z5TL7wA+mJyHZN/cTndIM1kORb8ADzNfyBPMhGRp31N' +
+      '4dLff0H28MQCr/0GPbAA+5dMReCPTMLollAI4JmaNtYEaw32sSsH35POtfVz91ui5AaxVONapfw4NfLrxdBvySBhZ' +
+      'Zq76INzyG6uwx7TDqJwy0e+SLmF4mQIDAQAB',
+    'base64',
+  );
+
   let kmsIdentityKeyPath: string;
   beforeAll(async () => {
     const kmsClient = new KeyManagementServiceClient();
@@ -57,9 +72,8 @@ describe('Identity keys', () => {
     let stubPublicKeySerialized: ArrayBuffer;
     let stubPrivateAddress: string;
     beforeAll(async () => {
-      const keyPair = await generateRSAKeyPair();
-      stubPublicKey = keyPair.publicKey;
-      stubPublicKeySerialized = bufferToArrayBuffer(await derSerializePublicKey(stubPublicKey));
+      stubPublicKey = await derDeserializeRSAPublicKey(STUB_KMS_PUBLIC_KEY);
+      stubPublicKeySerialized = bufferToArrayBuffer(STUB_KMS_PUBLIC_KEY);
       stubPrivateAddress = await getPrivateAddressFromIdentityKey(stubPublicKey);
     });
 
@@ -235,6 +249,23 @@ describe('Identity keys', () => {
         );
       });
 
+      test('Public key should be stored but not indexed', async () => {
+        const datastoreClient = makeDatastoreClient();
+        const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
+
+        await store.generateIdentityKeyPair();
+
+        expect(datastoreClient.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining<Partial<IdentityKeyEntity>>({
+              publicKey: Buffer.from(stubPublicKeySerialized),
+            }),
+            excludeFromIndexes: expect.arrayContaining<keyof IdentityKeyEntity>(['publicKey']),
+          }),
+          expect.anything(),
+        );
+      });
+
       test('Document creation should time out after 500ms', async () => {
         const datastoreClient = makeDatastoreClient();
         const store = new GCPPrivateKeyStore(makeKmsClient(), datastoreClient, KMS_CONFIG);
@@ -277,6 +308,14 @@ describe('Identity keys', () => {
         await expect(derSerializePublicKey(publicKey)).resolves.toEqual(
           Buffer.from(stubPublicKeySerialized),
         );
+      });
+
+      test('Private key algorithm should be populated correctly', async () => {
+        const store = new GCPPrivateKeyStore(makeKmsClient(), makeDatastoreClient(), KMS_CONFIG);
+
+        const { privateKey } = await store.generateIdentityKeyPair();
+
+        expect(privateKey.algorithm).toEqual(stubPublicKey.algorithm);
       });
 
       test('Private key should contain existing provider', async () => {
@@ -332,6 +371,8 @@ describe('Identity keys', () => {
   });
 
   describe('retrieveIdentityKey', () => {
+    const privateAddress = '0deadbeef';
+
     test('Null should be returned if key is not found on Datastore', async () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClientWithMockProject(),
@@ -349,7 +390,6 @@ describe('Identity keys', () => {
         makeDatastoreClient(datastoreError),
         KMS_CONFIG,
       );
-      const privateAddress = '0deadbeef';
 
       const error = await catchPromiseRejection(
         store.retrieveIdentityKey(privateAddress),
@@ -364,7 +404,6 @@ describe('Identity keys', () => {
       const datastoreClient = makeDatastoreClient();
       const kmsClient = makeKmsClientWithMockProject();
       const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, KMS_CONFIG);
-      const privateAddress = '0deadbeef';
 
       const privateKey = await store.retrieveIdentityKey(privateAddress);
 
@@ -379,6 +418,22 @@ describe('Identity keys', () => {
       expect(datastoreClient.get).toHaveBeenCalledWith(
         datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]),
       );
+    });
+
+    test('Public key should be populated', async () => {
+      const store = new GCPPrivateKeyStore(
+        makeKmsClientWithMockProject(),
+        makeDatastoreClient(),
+        KMS_CONFIG,
+      );
+
+      const privateKey = await store.retrieveIdentityKey(privateAddress);
+
+      expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
+      const publicKeySerialized = await derSerializePublicKey(
+        (privateKey as GcpKmsRsaPssPrivateKey).publicKey,
+      );
+      expect(publicKeySerialized).toEqual(STUB_KMS_PUBLIC_KEY);
     });
 
     test('Key should contain existing provider', async () => {
@@ -401,6 +456,7 @@ describe('Identity keys', () => {
         kmsClient,
         makeDatastoreClient({
           key: kmsKey,
+          publicKey: STUB_KMS_PUBLIC_KEY,
           version: '1',
         }),
         KMS_CONFIG,
@@ -416,6 +472,7 @@ describe('Identity keys', () => {
     function makeDatastoreClient(
       existingIdKey: IdentityKeyEntity | Error | null = {
         key: KMS_CONFIG.identityKeyId,
+        publicKey: STUB_KMS_PUBLIC_KEY,
         version: '1',
       },
     ): Datastore {
