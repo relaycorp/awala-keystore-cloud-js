@@ -199,7 +199,7 @@ describe('Identity keys', () => {
         const { privateAddress, publicKey } = await store.generateIdentityKeyPair();
 
         const document = await getDocument(privateAddress);
-        expect(document!.publicKey).toEqual(await derSerializePublicKey(publicKey));
+        expect(document!.publicKey.equals(await derSerializePublicKey(publicKey))).toBeTrue();
       });
 
       test('KMS key should be stored', async () => {
@@ -212,7 +212,7 @@ describe('Identity keys', () => {
       });
 
       test('KMS key id should be stored', async () => {
-        const kmsKeyVersion = '42';
+        const kmsKeyVersion = 42;
         const store = new GCPPrivateKeyStore(
           makeKmsClient({ versionId: kmsKeyVersion }),
           getDBConnection(),
@@ -274,7 +274,7 @@ describe('Identity keys', () => {
 
     function makeKmsClient({
       cryptoKeyAlgorithm = 'RSA_SIGN_PSS_2048_SHA256',
-      versionId = '1',
+      versionId = 1,
     } = {}): KeyManagementServiceClient {
       const kmsClient = new KeyManagementServiceClient();
 
@@ -288,7 +288,7 @@ describe('Identity keys', () => {
         KMS_CONFIG.location,
         KMS_CONFIG.keyRing,
         KMS_CONFIG.identityKeyId,
-        versionId,
+        versionId.toString(),
       );
       jest
         .spyOn(kmsClient, 'createCryptoKeyVersion')
@@ -301,6 +301,8 @@ describe('Identity keys', () => {
   });
 
   describe('retrieveIdentityKey', () => {
+    const PRIVATE_ADDRESS = '0deadbeef';
+
     test('Null should be returned if key is not found', async () => {
       const store = new GCPPrivateKeyStore(
         makeKmsClientWithMockProject(),
@@ -314,9 +316,17 @@ describe('Identity keys', () => {
     test('Key should be returned if found', async () => {
       const kmsClient = makeKmsClientWithMockProject();
       const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
-      const { privateAddress } = await store.generateIdentityKeyPair();
+      await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(privateAddress);
+      await expect(store.retrieveIdentityKey(PRIVATE_ADDRESS)).resolves.toBeTruthy();
+    });
+
+    test('Key version path should be populated correctly', async () => {
+      const kmsClient = makeKmsClientWithMockProject();
+      const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+      await saveKey();
+
+      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
 
       const kmsKeyVersionPath = kmsClient.cryptoKeyVersionPath(
         GCP_PROJECT,
@@ -334,9 +344,9 @@ describe('Identity keys', () => {
         getDBConnection(),
         KMS_CONFIG,
       );
-      const { privateAddress } = await store.generateIdentityKeyPair();
+      await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(privateAddress);
+      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
 
       expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
       const publicKeySerialized = await derSerializePublicKey(
@@ -351,9 +361,9 @@ describe('Identity keys', () => {
         getDBConnection(),
         KMS_CONFIG,
       );
-      const { privateAddress } = await store.generateIdentityKeyPair();
+      await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(privateAddress);
+      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
 
       expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
       expect((privateKey as GcpKmsRsaPssPrivateKey).provider).toBe(store.idKeyProvider);
@@ -362,21 +372,25 @@ describe('Identity keys', () => {
     test('Stored key name should override that of configuration', async () => {
       const kmsKey = `not-${KMS_CONFIG.identityKeyId}`;
       const kmsClient = makeKmsClientWithMockProject();
-      const privateAddress = '0deadbeef';
-      await getGcpIdentityKeyModel().create({
-        privateAddress,
-        publicKey: Buffer.from(''),
-        kmsKey,
-        kmsKeyVersion: 1,
-      });
       const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+      await saveKey({ kmsKey });
 
-      const privateKey = await store.retrieveIdentityKey(privateAddress);
+      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
 
       expect(
         kmsClient.matchCryptoKeyFromCryptoKeyVersionName(privateKey!.kmsKeyVersionPath),
       ).toEqual(kmsKey);
     });
+
+    async function saveKey({ kmsKey } = { kmsKey: KMS_CONFIG.identityKeyId }): Promise<void> {
+      const model = getGcpIdentityKeyModel();
+      await model.create({
+        privateAddress: PRIVATE_ADDRESS,
+        publicKey: STUB_KMS_PUBLIC_KEY,
+        kmsKey,
+        kmsKeyVersion: 1,
+      });
+    }
   });
 
   describe('saveIdentityKey', () => {
