@@ -28,7 +28,7 @@ export function getMockContext(mockedObject: any): jest.MockContext<any, any> {
 
 export function useFakeTimers(): void {
   beforeEach(() => {
-    jest.useFakeTimers('modern');
+    jest.useFakeTimers();
   });
 
   afterEach(() => {

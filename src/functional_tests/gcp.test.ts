@@ -1,4 +1,3 @@
-import { Datastore } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
   derSerializePrivateKey,
@@ -7,13 +6,13 @@ import {
 } from '@relaycorp/relaynet-core';
 
 import { constants, createVerify } from 'crypto';
-import { DatastoreKinds } from '../lib/gcp/DatastoreKinds';
 import { GcpKmsRsaPssPrivateKey } from '../lib/gcp/GcpKmsRsaPssPrivateKey';
 import { GcpKmsRsaPssProvider } from '../lib/gcp/GcpKmsRsaPssProvider';
 import { GCPPrivateKeyStore, KMSConfig } from '../lib/gcp/GCPPrivateKeyStore';
 import { derPublicKeyToPem } from '../testUtils/asn1';
 import { createKeyRingIfMissing } from './gcpUtils';
 import { TEST_RUN_ID } from './utils';
+import { setUpTestDBConnection } from '../testUtils/db';
 
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   throw new Error('GOOGLE_APPLICATION_CREDENTIALS must be defined');
@@ -63,15 +62,11 @@ afterAll(async () => {
   await kmsClient.close();
 });
 
-const datastoreClient = new Datastore({ namespace: `keystores-${TEST_RUN_ID}` });
-afterAll(async () => {
-  await emptyDatastoreKind(DatastoreKinds.IDENTITY_KEYS);
-  await emptyDatastoreKind(DatastoreKinds.SESSION_KEYS);
-});
+const getDBConnection = setUpTestDBConnection();
 
 describe('Private key store', () => {
   test('Generate identity key pair', async () => {
-    const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, getKMSConfig());
+    const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), getKMSConfig());
 
     const { privateKey, privateAddress } = await store.generateIdentityKeyPair();
 
@@ -85,7 +80,7 @@ describe('Private key store', () => {
   test('Save and retrieve session key', async () => {
     const privateAddress = '0deadbeef';
     const peerPrivateAddress = '0deadc0de';
-    const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, getKMSConfig());
+    const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), getKMSConfig());
     const { privateKey, sessionKey } = await SessionKeyPair.generate();
 
     await store.saveSessionKey(privateKey, sessionKey.keyId, privateAddress, peerPrivateAddress);
@@ -103,7 +98,7 @@ describe('Private key store', () => {
 
 describe('WebCrypto provider', () => {
   test('Sign with identity key', async () => {
-    const store = new GCPPrivateKeyStore(kmsClient, datastoreClient, getKMSConfig());
+    const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), getKMSConfig());
     const provider = new GcpKmsRsaPssProvider(kmsClient);
     const { privateKey, publicKey } = await store.generateIdentityKeyPair();
     const plaintext = Buffer.from('this is the plaintext');
@@ -145,11 +140,4 @@ function getKMSConfig(): KMSConfig {
 async function deleteAllKMSKeyVersions(kmsKeyName: string): Promise<void> {
   const [listResponse] = await kmsClient.listCryptoKeyVersions({ parent: kmsKeyName });
   await Promise.all(listResponse.map((k) => kmsClient.destroyCryptoKeyVersion({ name: k.name })));
-}
-
-async function emptyDatastoreKind(kind: DatastoreKinds): Promise<void> {
-  const query = await datastoreClient.createQuery(kind).select('__key__');
-  const [entities] = await datastoreClient.runQuery(query);
-  const entityKeys = entities.map((e) => e[Datastore.KEY]);
-  await datastoreClient.delete(entityKeys);
 }

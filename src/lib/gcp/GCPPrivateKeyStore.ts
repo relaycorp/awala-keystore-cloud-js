@@ -1,4 +1,3 @@
-import { Datastore } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
   derDeserializeRSAPublicKey,
@@ -8,16 +7,18 @@ import {
   RSAKeyGenOptions,
   SessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
+import { getModelForClass, ReturnModelType } from '@typegoose/typegoose';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
+import { Connection } from 'mongoose';
 
-import { IdentityKeyEntity, SessionKeyEntity } from './datastoreEntities';
-import { DatastoreKinds } from './DatastoreKinds';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
 import { retrieveKMSPublicKey } from './kmsUtils';
 import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
+import { GcpIdentityKey } from './models/GcpIdentityKey';
+import { GcpSessionKey } from './models/GcpSessionKey';
 
 export interface KMSConfig {
   readonly location: string;
@@ -25,12 +26,6 @@ export interface KMSConfig {
   readonly identityKeyId: string;
   readonly sessionEncryptionKeyId: string;
 }
-
-const SESSION_KEY_INDEX_EXCLUSIONS: ReadonlyArray<keyof SessionKeyEntity> = [
-  'peerPrivateAddress',
-  'privateAddress',
-  'privateKeyCiphertext',
-];
 
 interface ADDRequestParams {
   readonly additionalAuthenticatedData: Buffer;
@@ -40,14 +35,20 @@ interface ADDRequestParams {
 export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   public readonly idKeyProvider: GcpKmsRsaPssProvider;
 
+  protected readonly idKeyModel: ReturnModelType<typeof GcpIdentityKey>;
+  protected readonly sessionKeyModel: ReturnModelType<typeof GcpSessionKey>;
+
   constructor(
     protected kmsClient: KeyManagementServiceClient,
-    protected datastoreClient: Datastore,
+    dbConnection: Connection,
     protected kmsConfig: KMSConfig,
   ) {
     super();
 
     this.idKeyProvider = new GcpKmsRsaPssProvider(kmsClient);
+
+    this.idKeyModel = getModelForClass(GcpIdentityKey, { existingConnection: dbConnection });
+    this.sessionKeyModel = getModelForClass(GcpSessionKey, { existingConnection: dbConnection });
   }
 
   public override async generateIdentityKeyPair(
@@ -74,28 +75,18 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   }
 
   public async retrieveIdentityKey(privateAddress: string): Promise<GcpKmsRsaPssPrivateKey | null> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
-    let keyDocument: IdentityKeyEntity | undefined;
-    try {
-      const [entity] = await this.datastoreClient.get(datastoreKey);
-      keyDocument = entity;
-    } catch (err) {
-      throw new GCPKeystoreError(
-        err as Error,
-        `Failed to look up KMS key version for ${privateAddress}`,
-      );
-    }
-    if (!keyDocument) {
+    const keyData = await this.idKeyModel.findOne({ privateAddress }).exec();
+    if (!keyData) {
       return null;
     }
     const kmsKeyPath = this.kmsClient.cryptoKeyVersionPath(
       await this.getGCPProjectId(),
       this.kmsConfig.location,
       this.kmsConfig.keyRing,
-      keyDocument.key, // Ignore the KMS key in the constructor
-      keyDocument.version,
+      keyData.kmsKey, // Ignore the KMS key in the constructor
+      keyData.kmsKeyVersion.toString(),
     );
-    const publicKey = await derDeserializeRSAPublicKey(keyDocument.publicKey);
+    const publicKey = await derDeserializeRSAPublicKey(keyData.publicKey);
     return new GcpKmsRsaPssPrivateKey(kmsKeyPath, publicKey, this.idKeyProvider);
   }
 
@@ -113,41 +104,28 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     privateAddress: string,
     peerPrivateAddress?: string,
   ): Promise<void> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
     const privateKeyCiphertext = await this.encryptSessionPrivateKey(
       keySerialized,
       privateAddress,
       peerPrivateAddress,
     );
-    const data: SessionKeyEntity = {
-      creationDate: new Date(),
-      peerPrivateAddress,
+    await this.sessionKeyModel.create({
+      keyId,
       privateAddress,
+      peerPrivateAddress,
       privateKeyCiphertext,
-    };
-    await wrapGCPCallError(
-      this.datastoreClient.save(
-        { data, excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS, key: datastoreKey },
-        { timeout: 500 },
-      ),
-      'Failed to store session key in Datastore',
-    );
+    });
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
-    const [entity] = await wrapGCPCallError(
-      this.datastoreClient.get(datastoreKey, { gaxOptions: { timeout: 500 } }),
-      'Failed to retrieve key from Datastore',
-    );
-    if (!entity) {
+    const document = await this.sessionKeyModel.findOne({ keyId }).exec();
+    if (!document) {
       return null;
     }
-    const keyData: SessionKeyEntity = entity;
-    const peerPrivateAddress = keyData.peerPrivateAddress;
-    const privateAddress = keyData.privateAddress;
+    const peerPrivateAddress = document.peerPrivateAddress;
+    const privateAddress = document.privateAddress;
     const keySerialized = await this.decryptSessionPrivateKey(
-      keyData.privateKeyCiphertext,
+      document.privateKeyCiphertext,
       privateAddress,
       peerPrivateAddress,
     );
@@ -191,25 +169,14 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     privateAddress: string,
     publicKey: CryptoKey,
   ): Promise<void> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.IDENTITY_KEYS, privateAddress]);
-    const identityKeyEntity: IdentityKeyEntity = {
-      key: this.kmsConfig.identityKeyId,
+    const kmsKeyVersion =
+      this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(kmsKeyVersionPath);
+    await this.idKeyModel.create({
+      privateAddress,
       publicKey: await derSerializePublicKey(publicKey),
-      version: this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(
-        kmsKeyVersionPath,
-      ) as string,
-    };
-    await wrapGCPCallError(
-      this.datastoreClient.save(
-        {
-          data: identityKeyEntity,
-          excludeFromIndexes: ['key', 'publicKey', 'version'],
-          key: datastoreKey,
-        },
-        { timeout: 500 },
-      ),
-      'Failed to register identity key on Datastore',
-    );
+      kmsKey: this.kmsConfig.identityKeyId,
+      kmsKeyVersion,
+    });
   }
 
   //endregion

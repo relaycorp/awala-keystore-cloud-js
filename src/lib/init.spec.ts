@@ -1,4 +1,3 @@
-import { Datastore } from '@google-cloud/datastore';
 import { KeyManagementServiceClient } from '@google-cloud/kms';
 import { EnvVarError } from 'env-var';
 
@@ -8,16 +7,21 @@ import { Adapter } from './Adapter';
 import * as vaultKeystore from './vault/VaultPrivateKeyStore';
 import { CloudKeystoreError } from './CloudKeystoreError';
 import * as gcpKeystore from './gcp/GCPPrivateKeyStore';
+import { setUpTestDBConnection } from '../testUtils/db';
 
 jest.mock('./vault/VaultPrivateKeyStore');
 jest.mock('./gcp/GCPPrivateKeyStore');
+
+const getDBConnection = setUpTestDBConnection();
 
 describe('initPrivateKeyStoreFromEnv', () => {
   const mockEnvVars = configureMockEnvVars();
 
   test('Unknown adapter should be refused', () => {
     const invalidAdapter = 'potato';
-    expect(() => initPrivateKeystoreFromEnv(invalidAdapter as any)).toThrowWithMessage(
+    expect(() =>
+      initPrivateKeystoreFromEnv(invalidAdapter as any, getDBConnection()),
+    ).toThrowWithMessage(
       CloudKeystoreError,
       `Invalid private keystore adapter (${invalidAdapter})`,
     );
@@ -38,15 +42,14 @@ describe('initPrivateKeyStoreFromEnv', () => {
       (envVar) => {
         mockEnvVars({ ...ENV_VARS, [envVar]: undefined });
 
-        expect(() => initPrivateKeystoreFromEnv(Adapter.VAULT)).toThrowWithMessage(
-          EnvVarError,
-          new RegExp(envVar),
-        );
+        expect(() =>
+          initPrivateKeystoreFromEnv(Adapter.VAULT, getDBConnection()),
+        ).toThrowWithMessage(EnvVarError, new RegExp(envVar));
       },
     );
 
     test('Key store should be returned if env vars are present', () => {
-      const keyStore = initPrivateKeystoreFromEnv(Adapter.VAULT);
+      const keyStore = initPrivateKeystoreFromEnv(Adapter.VAULT, getDBConnection());
 
       expect(keyStore).toBeInstanceOf(vaultKeystore.VaultPrivateKeyStore);
       expect(vaultKeystore.VaultPrivateKeyStore).toBeCalledWith(
@@ -60,7 +63,6 @@ describe('initPrivateKeyStoreFromEnv', () => {
   describe('GPC', () => {
     const ENV_VARS = {
       KS_GCP_LOCATION: 'westeros-3',
-      KS_DATASTORE_NS: 'the-namespace',
       KS_KMS_KEYRING: 'my-precious',
       KS_KMS_ID_KEY: 'id',
       KS_KMS_SESSION_ENC_KEY: 'session',
@@ -74,7 +76,7 @@ describe('initPrivateKeyStoreFromEnv', () => {
       (envVar) => {
         mockEnvVars({ ...ENV_VARS, [envVar]: undefined });
 
-        expect(() => initPrivateKeystoreFromEnv(Adapter.GCP)).toThrowWithMessage(
+        expect(() => initPrivateKeystoreFromEnv(Adapter.GCP, getDBConnection())).toThrowWithMessage(
           EnvVarError,
           new RegExp(envVar),
         );
@@ -82,12 +84,14 @@ describe('initPrivateKeyStoreFromEnv', () => {
     );
 
     test('Key store should be returned if env vars are present', async () => {
-      const keyStore = initPrivateKeystoreFromEnv(Adapter.GCP);
+      const dbConnection = getDBConnection();
+
+      const keyStore = initPrivateKeystoreFromEnv(Adapter.GCP, dbConnection);
 
       expect(keyStore).toBeInstanceOf(gcpKeystore.GCPPrivateKeyStore);
       expect(gcpKeystore.GCPPrivateKeyStore).toBeCalledWith(
         expect.any(KeyManagementServiceClient),
-        expect.toSatisfy<Datastore>((d) => d.namespace === ENV_VARS.KS_DATASTORE_NS),
+        dbConnection,
         expect.objectContaining<gcpKeystore.KMSConfig>({
           identityKeyId: ENV_VARS.KS_KMS_ID_KEY,
           keyRing: ENV_VARS.KS_KMS_KEYRING,
