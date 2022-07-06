@@ -4,7 +4,7 @@ import { Connection, ConnectOptions, createConnection } from 'mongoose';
 import { GcpIdentityKey } from '../lib/gcp/models/GcpIdentityKey';
 import { GcpSessionKey } from '../lib/gcp/models/GcpSessionKey';
 
-const MODEL_CLASSES = [GcpIdentityKey, GcpSessionKey];
+const MODEL_CLASSES: readonly (new () => any)[] = [GcpIdentityKey, GcpSessionKey];
 
 export function setUpTestDBConnection(): () => Connection {
   let connection: Connection;
