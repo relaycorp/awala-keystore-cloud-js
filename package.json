@@ -41,7 +41,6 @@
     "node": ">=14"
   },
   "dependencies": {
-    "@google-cloud/datastore": "^7.0.0",
     "@google-cloud/kms": "^3.0.0",
     "@relaycorp/relaynet-core": "< 2.0",
     "@typegoose/typegoose": "< 10.0",
