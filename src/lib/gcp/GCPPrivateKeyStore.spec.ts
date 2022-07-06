@@ -473,8 +473,7 @@ describe('Session keys', () => {
     });
 
     test('Peer private address should not be stored if key is unbound', async () => {
-      const datastoreClient = getDBConnection();
-      const store = new GCPPrivateKeyStore(makeKMSClient(), datastoreClient, KMS_CONFIG);
+      const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
 
       await store.saveSessionKey(
         sessionKeyPair.privateKey,

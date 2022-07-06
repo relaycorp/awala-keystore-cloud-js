@@ -48,7 +48,7 @@ The unit test suite can be run the standard way on Node.js: `npm test`.
 
 The integration tests aren't currently run on CI, and can be run with `npm run test:integration:local`. Note that some environments variables must be set, and others are optional:
 
-- [`GOOGLE_APPLICATION_CREDENTIALS`](https://cloud.google.com/docs/authentication/getting-started) (required), using a service account. All GCP resources will be created within the same project where the service account lives. The GCP service account should be allowed to manage KMS and Datastore resources.
+- [`GOOGLE_APPLICATION_CREDENTIALS`](https://cloud.google.com/docs/authentication/getting-started) (required), using a service account. All GCP resources will be created within the same project where the service account lives. The GCP service account should be allowed to manage KMS resources.
 - `GCP_LOCATION` (default: `europe-west3`). The location where resources will be created.
 
 The test suite will automatically delete all the resources it created, except for those that can't be deleted (e.g., GPC KMS key rings). Existing resources are not modified. However, this may not always be true due to bugs, so **always create a brand new, temporary GCP project**.
@@ -57,7 +57,7 @@ The test suite will automatically delete all the resources it created, except fo
 
 ### GCP keystores
 
-- [Since KMS doesn't support (EC)DH keys](https://github.com/relaycorp/awala-keystore-cloud-js/issues/5), we had to use envelope encryption to secure the session private keys at rest in Datastore (using a customer-managed KMS encryption key). The alternative was to use Secret Manager, but it was ruled out because:
-  - It'd be easier to maintain data relationship integrity with a single Datastore entity for each session key pair, compared to having a Datastore entity and a Secret Manager secret for each key pair. For example, if whilst creating a new key pair the secret were successfully added to Secret Manager but the Datastore entity creation fails, we'd have to implement a rollback mechanism to avoid leaving the two sources out of sync (and even this wouldn't be 100% reliable).
+- [Since KMS doesn't support (EC)DH keys](https://github.com/relaycorp/awala-keystore-cloud-js/issues/5), we had to use envelope encryption to secure the session private keys at rest in the database (using a customer-managed KMS encryption key). The alternative was to use Secret Manager, but it was ruled out because:
+  - It'd be easier to maintain data relationship integrity with a single DB record for each session key pair, compared to having a DB record and a Secret Manager secret for each key pair. For example, if whilst creating a new key pair the secret were successfully added to Secret Manager but the DB record creation fails, we'd have to implement a rollback mechanism to avoid leaving the two sources out of sync (and even this wouldn't be 100% reliable).
   - As of this writing, Secret Manager has a limit of 90,000 access requests per minute per project.
 - We're wrapping all GCP errors with a [VError](https://www.npmjs.com/package/verror) subclass to provide meaningful stack traces and error messages, since GCP libraries produce utterly meaningless errors.

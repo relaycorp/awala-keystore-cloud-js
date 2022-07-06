@@ -16,8 +16,7 @@
   "keywords": [
     "awala",
     "gcp",
-    "gcp-kms",
-    "gcp-datastore"
+    "gcp-kms"
   ],
   "scripts": {
     "build": "run-s clean && run-p build:*",
