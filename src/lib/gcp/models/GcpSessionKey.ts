@@ -12,8 +12,8 @@ export class GcpSessionKey {
   @prop({ required: true })
   public readonly privateAddress!: string;
 
-  @prop({ required: true })
-  public readonly peerPrivateAddress!: string | null;
+  @prop()
+  public readonly peerPrivateAddress?: string;
 
   @prop({ required: true })
   public readonly privateKeyCiphertext!: Buffer;

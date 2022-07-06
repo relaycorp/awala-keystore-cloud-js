@@ -11,8 +11,6 @@ import { getModelForClass, ReturnModelType } from '@typegoose/typegoose';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
 import { Connection } from 'mongoose';
 
-import { SessionKeyEntity } from './datastoreEntities';
-import { DatastoreKinds } from './DatastoreKinds';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
@@ -20,6 +18,7 @@ import { retrieveKMSPublicKey } from './kmsUtils';
 import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 import { GcpIdentityKey } from './models/GcpIdentityKey';
+import { GcpSessionKey } from './models/GcpSessionKey';
 
 export interface KMSConfig {
   readonly location: string;
@@ -27,12 +26,6 @@ export interface KMSConfig {
   readonly identityKeyId: string;
   readonly sessionEncryptionKeyId: string;
 }
-
-const SESSION_KEY_INDEX_EXCLUSIONS: ReadonlyArray<keyof SessionKeyEntity> = [
-  'peerPrivateAddress',
-  'privateAddress',
-  'privateKeyCiphertext',
-];
 
 interface ADDRequestParams {
   readonly additionalAuthenticatedData: Buffer;
@@ -43,6 +36,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   public readonly idKeyProvider: GcpKmsRsaPssProvider;
 
   protected readonly idKeyModel: ReturnModelType<typeof GcpIdentityKey>;
+  protected readonly sessionKeyModel: ReturnModelType<typeof GcpSessionKey>;
 
   constructor(
     protected kmsClient: KeyManagementServiceClient,
@@ -51,9 +45,10 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   ) {
     super();
 
-    this.idKeyModel = getModelForClass(GcpIdentityKey, { existingConnection: dbConnection });
-
     this.idKeyProvider = new GcpKmsRsaPssProvider(kmsClient);
+
+    this.idKeyModel = getModelForClass(GcpIdentityKey, { existingConnection: dbConnection });
+    this.sessionKeyModel = getModelForClass(GcpSessionKey, { existingConnection: dbConnection });
   }
 
   public override async generateIdentityKeyPair(
@@ -109,41 +104,28 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     privateAddress: string,
     peerPrivateAddress?: string,
   ): Promise<void> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
     const privateKeyCiphertext = await this.encryptSessionPrivateKey(
       keySerialized,
       privateAddress,
       peerPrivateAddress,
     );
-    const data: SessionKeyEntity = {
-      creationDate: new Date(),
-      peerPrivateAddress,
+    await this.sessionKeyModel.create({
+      keyId,
       privateAddress,
+      peerPrivateAddress,
       privateKeyCiphertext,
-    };
-    await wrapGCPCallError(
-      this.datastoreClient.save(
-        { data, excludeFromIndexes: SESSION_KEY_INDEX_EXCLUSIONS, key: datastoreKey },
-        { timeout: 500 },
-      ),
-      'Failed to store session key in Datastore',
-    );
+    });
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
-    const datastoreKey = this.datastoreClient.key([DatastoreKinds.SESSION_KEYS, keyId]);
-    const [entity] = await wrapGCPCallError(
-      this.datastoreClient.get(datastoreKey, { gaxOptions: { timeout: 500 } }),
-      'Failed to retrieve key from Datastore',
-    );
-    if (!entity) {
+    const document = await this.sessionKeyModel.findOne({ keyId }).exec();
+    if (!document) {
       return null;
     }
-    const keyData: SessionKeyEntity = entity;
-    const peerPrivateAddress = keyData.peerPrivateAddress;
-    const privateAddress = keyData.privateAddress;
+    const peerPrivateAddress = document.peerPrivateAddress;
+    const privateAddress = document.privateAddress;
     const keySerialized = await this.decryptSessionPrivateKey(
-      keyData.privateKeyCiphertext,
+      document.privateKeyCiphertext,
       privateAddress,
       peerPrivateAddress,
     );

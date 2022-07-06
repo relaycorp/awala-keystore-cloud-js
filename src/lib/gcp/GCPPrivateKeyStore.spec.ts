@@ -483,7 +483,7 @@ describe('Session keys', () => {
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.peerPrivateAddress).toBeNull();
+      expect(document?.peerPrivateAddress).toBeUndefined();
     });
 
     test('Private key should be stored encrypted', async () => {
@@ -501,7 +501,7 @@ describe('Session keys', () => {
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.privateKeyCiphertext).toEqual(privateKeyCiphertext);
+      expect(document!.privateKeyCiphertext.equals(privateKeyCiphertext)).toBeTrue();
     });
 
     test('Creation date should be stored', async () => {
@@ -516,8 +516,8 @@ describe('Session keys', () => {
 
       const afterDate = new Date();
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.creationDate).toBeBeforeOrEqualTo(beforeDate);
-      expect(document?.creationDate).toBeAfterOrEqualTo(afterDate);
+      expect(document?.creationDate).toBeBeforeOrEqualTo(afterDate);
+      expect(document?.creationDate).toBeAfterOrEqualTo(beforeDate);
     });
 
     describe('KMS encryption', () => {
@@ -733,11 +733,11 @@ describe('Session keys', () => {
       responseOrError: Partial<KMSEncryptResponse> | Error = {},
     ): KeyManagementServiceClient {
       const kmsClient = makeKmsClientWithMockProject();
-      jest.spyOn(kmsClient, 'encrypt').mockImplementation(async () => {
+      jest.spyOn(kmsClient, 'encrypt').mockImplementation(async ({ plaintext }: any) => {
         if (responseOrError instanceof Error) {
           throw responseOrError;
         }
-        const ciphertext = responseOrError.ciphertext ?? Buffer.from([]);
+        const ciphertext = responseOrError.ciphertext ?? mockEncrypt(plaintext);
         const ciphertextCrc32c =
           responseOrError.ciphertextCrc32cValue ?? calculateCRC32C(ciphertext);
         const kmsKeyVersionName =
@@ -772,7 +772,7 @@ describe('Session keys', () => {
 
     test('Unbound key should be returned regardless of peer', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
-      await saveKey({ peerPrivateAddress: null });
+      await saveKey({ peerPrivateAddress: undefined });
 
       const key = await store.retrieveSessionKey(
         sessionKeyPair.sessionKey.keyId,
@@ -830,6 +830,7 @@ describe('Session keys', () => {
       test('Specified KMS key should be used', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+        await saveKey();
 
         await store.retrieveSessionKey(
           sessionKeyPair.sessionKey.keyId,
@@ -846,7 +847,8 @@ describe('Session keys', () => {
       test('Ciphertext should be taken from DB', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
-        await saveKey();
+        const ciphertext = mockEncrypt(await derSerializePrivateKey(sessionKeyPair.privateKey));
+        await saveKey({ privateKeyCiphertext: ciphertext });
 
         await store.retrieveSessionKey(
           sessionKeyPair.sessionKey.keyId,
@@ -854,9 +856,8 @@ describe('Session keys', () => {
           peerPrivateAddress,
         );
 
-        const ciphertext = mockEncrypt(await derSerializePrivateKey(sessionKeyPair.privateKey));
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
-          expect.objectContaining({ ciphertext }),
+          expect.objectContaining({ ciphertext: expect.toSatisfy((c) => c.equals(ciphertext)) }),
           expect.anything(),
         );
       });
@@ -903,7 +904,7 @@ describe('Session keys', () => {
       test('AAD should be node private address if key is unbound', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
-        await saveKey();
+        await saveKey({ peerPrivateAddress: undefined });
 
         await store.retrieveSessionKey(
           sessionKeyPair.sessionKey.keyId,
@@ -949,6 +950,7 @@ describe('Session keys', () => {
       test('Request should time out after 500ms', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+        await saveKey();
 
         await store.retrieveSessionKey(
           sessionKeyPair.sessionKey.keyId,
@@ -969,6 +971,7 @@ describe('Session keys', () => {
           getDBConnection(),
           KMS_CONFIG,
         );
+        await saveKey();
 
         const error = await catchPromiseRejection(
           store.retrieveSessionKey(
@@ -998,30 +1001,37 @@ describe('Session keys', () => {
       return kmsClient;
     }
 
-    async function saveKey(key: Partial<Omit<GcpSessionKey, 'creationDate'>> = {}): Promise<void> {
+    interface SaveKeyProps {
+      readonly privateAddress: string;
+      readonly peerPrivateAddress?: string;
+      readonly privateKeyCiphertext: Buffer;
+    }
+
+    async function saveKey(key: Partial<SaveKeyProps> = {}): Promise<void> {
       const model = getGcpSessionKeyModel();
       await model.create({
         privateAddress: key.privateAddress ?? privateAddress,
-        peerPrivateAddress:
-          key.peerPrivateAddress === undefined ? peerPrivateAddress : key.peerPrivateAddress,
-        keyId: sessionKeyPair.sessionKey.keyId,
+        peerPrivateAddress: Object.getOwnPropertyNames(key).includes('peerPrivateAddress')
+          ? key.peerPrivateAddress
+          : peerPrivateAddress,
+        keyId: sessionKeyPair.sessionKey.keyId.toString('hex'),
         privateKeyCiphertext:
           key.privateKeyCiphertext ??
           mockEncrypt(await derSerializePrivateKey(sessionKeyPair.privateKey)),
       });
     }
-
-    function mockEncrypt(plaintext: Buffer): Buffer {
-      return Buffer.from(plaintext.toString('base64'));
-    }
-
-    function mockDecrypt(ciphertext: Buffer): Buffer {
-      return Buffer.from(ciphertext.toString('ascii'), 'base64');
-    }
   });
 
   function getGcpSessionKeyModel(): ReturnModelType<typeof GcpSessionKey> {
     return getModelForClass(GcpSessionKey, { existingConnection: getDBConnection() });
+  }
+
+  function mockEncrypt(plaintext: Buffer): Buffer {
+    return Buffer.from(plaintext.toString('base64'));
+  }
+
+  function mockDecrypt(ciphertext: Buffer): Buffer {
+    return Buffer.from(ciphertext.toString('ascii'), 'base64');
   }
 });
 
