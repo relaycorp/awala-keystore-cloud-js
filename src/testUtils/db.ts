@@ -39,6 +39,7 @@ export function setUpTestDBConnection(): () => Connection {
 
   afterAll(async () => {
     await connection.close(true);
+    await mongoServer.stop();
   });
 
   return () => connection;
