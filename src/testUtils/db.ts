@@ -1,5 +1,6 @@
 import { deleteModelWithClass } from '@typegoose/typegoose';
 import { Connection, ConnectOptions, createConnection } from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import { GcpIdentityKey } from '../lib/gcp/models/GcpIdentityKey';
 import { GcpSessionKey } from '../lib/gcp/models/GcpSessionKey';
@@ -7,15 +8,17 @@ import { GcpSessionKey } from '../lib/gcp/models/GcpSessionKey';
 const MODEL_CLASSES: readonly (new () => any)[] = [GcpIdentityKey, GcpSessionKey];
 
 export function setUpTestDBConnection(): () => Connection {
+  let connectionURI: string;
   let connection: Connection;
-
-  const connectionOptions: ConnectOptions = { bufferCommands: false };
-  const connect = () =>
-    createConnection((global as any).__MONGO_URI__, connectionOptions).asPromise();
-
+  const mongoServer = new MongoMemoryServer();
   beforeAll(async () => {
+    await mongoServer.start();
+    connectionURI = mongoServer.getUri();
     connection = await connect();
   });
+
+  const connectionOptions: ConnectOptions = { bufferCommands: false };
+  const connect = () => createConnection(connectionURI, connectionOptions).asPromise();
 
   beforeEach(async () => {
     if (connection.readyState === 0) {
@@ -36,6 +39,7 @@ export function setUpTestDBConnection(): () => Connection {
 
   afterAll(async () => {
     await connection.close(true);
+    await mongoServer.stop();
   });
 
   return () => connection;
