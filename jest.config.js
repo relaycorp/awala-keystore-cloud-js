@@ -1,5 +1,3 @@
-const { defaults: tsjPreset } = require('ts-jest/presets');
-
 module.exports = {
   // All imported modules in your tests should be mocked automatically
   // automock: false,
@@ -86,7 +84,7 @@ module.exports = {
   // notifyMode: "failure-change",
 
   // A preset that is used as a base for Jest's configuration
-  preset: "@shelf/jest-mongodb",
+  preset: "ts-jest",
 
   // Run tests from one or more projects
   // projects: null,
@@ -155,9 +153,6 @@ module.exports = {
 
   // Setting this value to "fake" allows the use of fake timers for functions such as "setTimeout"
   // timers: "real",
-
-  // A map from regular expressions to paths to transformers
-  transform: tsjPreset.transform,
 
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
   // transformIgnorePatterns: [
