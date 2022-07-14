@@ -122,6 +122,8 @@ module.exports = {
   // A list of paths to snapshot serializer modules Jest should use for snapshot testing
   // snapshotSerializers: [],
 
+  testEnvironment: "node",
+
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},
 
