@@ -154,7 +154,7 @@ describe('Identity keys', () => {
         );
       });
 
-      test('Version creation call should time out after 500ms', async () => {
+      test('Version creation call should time out after 1000ms', async () => {
         const kmsClient = makeKmsClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
 
@@ -162,7 +162,19 @@ describe('Identity keys', () => {
 
         expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
           expect.anything(),
-          expect.objectContaining({ timeout: 500 }),
+          expect.objectContaining({ timeout: 1_000 }),
+        );
+      });
+
+      test('Version creation call should be retried up to 3 times', async () => {
+        const kmsClient = makeKmsClient();
+        const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+
+        await store.generateIdentityKeyPair();
+
+        expect(kmsClient.createCryptoKeyVersion).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ maxRetries: 3 }),
         );
       });
 
@@ -682,7 +694,7 @@ describe('Session keys', () => {
         );
       });
 
-      test('Request should time out after 500ms', async () => {
+      test('Request should time out after 1000ms', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
 
@@ -694,7 +706,23 @@ describe('Session keys', () => {
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
           expect.anything(),
-          expect.objectContaining({ timeout: 500 }),
+          expect.objectContaining({ timeout: 1_000 }),
+        );
+      });
+
+      test('Request should be retried up to 3 times', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+
+        await store.saveSessionKey(
+          sessionKeyPair.privateKey,
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+        );
+
+        expect(kmsClient.encrypt).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ maxRetries: 3 }),
         );
       });
 
@@ -946,7 +974,7 @@ describe('Session keys', () => {
         );
       });
 
-      test('Request should time out after 500ms', async () => {
+      test('Request should time out after 1000ms', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
@@ -959,7 +987,24 @@ describe('Session keys', () => {
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.anything(),
-          expect.objectContaining({ timeout: 500 }),
+          expect.objectContaining({ timeout: 1_000 }),
+        );
+      });
+
+      test('Request should be retried up to 3 times', async () => {
+        const kmsClient = makeKMSClient();
+        const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
+        await saveKey();
+
+        await store.retrieveSessionKey(
+          sessionKeyPair.sessionKey.keyId,
+          privateAddress,
+          peerPrivateAddress,
+        );
+
+        expect(kmsClient.decrypt).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ maxRetries: 3 }),
         );
       });
 

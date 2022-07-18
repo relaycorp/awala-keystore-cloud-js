@@ -7,6 +7,7 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
+import { KMS_REQUEST_OPTIONS } from './kmsUtils';
 
 // See: https://cloud.google.com/kms/docs/algorithms#rsa_signing_algorithms
 const SUPPORTED_SALT_LENGTHS: readonly number[] = [
@@ -68,7 +69,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     const [response] = await wrapGCPCallError(
       this.kmsClient.asymmetricSign(
         { data: plaintext, dataCrc32c: { value: plaintextChecksum }, name: key.kmsKeyVersionPath },
-        { timeout: 1_000 },
+        KMS_REQUEST_OPTIONS,
       ),
       'KMS signature request failed',
     );
