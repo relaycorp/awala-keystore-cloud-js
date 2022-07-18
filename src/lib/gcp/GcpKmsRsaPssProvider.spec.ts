@@ -155,6 +155,18 @@ describe('onSign', () => {
     );
   });
 
+  test('Request should be retried up to 3 times', async () => {
+    const kmsClient = makeKmsClient();
+    const provider = new GcpKmsRsaPssProvider(kmsClient);
+
+    await provider.sign(ALGORITHM, privateKey, PLAINTEXT);
+
+    expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ maxRetries: 3 }),
+    );
+  });
+
   test('API call errors should be wrapped', async () => {
     const callError = new Error('Bruno. There. I said it.');
     const provider = new GcpKmsRsaPssProvider(makeKmsClient(callError));

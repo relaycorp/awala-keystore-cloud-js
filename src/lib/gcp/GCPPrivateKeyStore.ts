@@ -14,7 +14,7 @@ import { Connection } from 'mongoose';
 import { GCPKeystoreError } from './GCPKeystoreError';
 import { GcpKmsRsaPssPrivateKey } from './GcpKmsRsaPssPrivateKey';
 import { wrapGCPCallError } from './gcpUtils';
-import { retrieveKMSPublicKey } from './kmsUtils';
+import { KMS_REQUEST_OPTIONS, retrieveKMSPublicKey } from './kmsUtils';
 import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 import { GcpIdentityKey } from './models/GcpIdentityKey';
@@ -158,7 +158,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   private async createSigningKMSKeyVersion(kmsKeyName: string): Promise<string> {
     // Version 1 of the KMS key was already linked, so create a new version.
     const [kmsVersionResponse] = await wrapGCPCallError(
-      this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }, { timeout: 500 }),
+      this.kmsClient.createCryptoKeyVersion({ parent: kmsKeyName }, KMS_REQUEST_OPTIONS),
       'Failed to create key version',
     );
     return kmsVersionResponse.name!;
@@ -197,7 +197,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
           plaintext: keySerialized,
           plaintextCrc32c: { value: calculateCRC32C(keySerialized) },
         },
-        { timeout: 500 },
+        KMS_REQUEST_OPTIONS,
       ),
       'Failed to encrypt session key with KMS',
     );
@@ -230,7 +230,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
           ciphertextCrc32c: { value: ciphertextCRC32C },
           name: kmsKeyName,
         },
-        { timeout: 500 },
+        KMS_REQUEST_OPTIONS,
       ),
       'Failed to decrypt session key with KMS',
     );

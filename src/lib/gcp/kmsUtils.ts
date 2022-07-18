@@ -4,6 +4,8 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { sleep } from '../utils/timing';
 import { wrapGCPCallError } from './gcpUtils';
 
+export const KMS_REQUEST_OPTIONS = { timeout: 1_000, maxRetries: 3 };
+
 export async function retrieveKMSPublicKey(
   kmsKeyVersionName: string,
   kmsClient: KeyManagementServiceClient,
