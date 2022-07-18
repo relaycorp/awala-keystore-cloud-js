@@ -30,16 +30,10 @@ test('Public key should be honored', () => {
   expect(key.publicKey).toBe(publicKey);
 });
 
-test('Algorithm should be RSA-PSS', () => {
+test('Hashing algorithm should be taken from public key', () => {
   const key = new GcpKmsRsaPssPrivateKey(KMS_KEY_PATH, publicKey, KMS_PROVIDER);
 
-  expect(key.algorithm.name).toEqual('RSA-PSS');
-});
-
-test('Algorithm parameters should be taken from public key', () => {
-  const key = new GcpKmsRsaPssPrivateKey(KMS_KEY_PATH, publicKey, KMS_PROVIDER);
-
-  expect(key.algorithm).toMatchObject(publicKey.algorithm);
+  expect(key.algorithm).toHaveProperty('hash.name', (publicKey.algorithm as any).hash.name);
 });
 
 test('Usage should be "sign"', () => {

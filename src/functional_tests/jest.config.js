@@ -4,5 +4,4 @@ module.exports = {
   preset: mainJestConfig.preset,
   roots: ['.'],
   setupFilesAfterEnv: mainJestConfig.setupFilesAfterEnv,
-  transform: mainJestConfig.transform,
 };
