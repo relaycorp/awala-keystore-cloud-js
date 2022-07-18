@@ -251,7 +251,7 @@ describe('Identity keys', () => {
 
         const { privateKey } = await store.generateIdentityKeyPair();
 
-        expect(privateKey.algorithm).toEqual(stubPublicKey.algorithm);
+        expect(privateKey.algorithm).toHaveProperty('hash', (stubPublicKey.algorithm as any).hash);
       });
 
       test('Private key should contain existing provider', async () => {

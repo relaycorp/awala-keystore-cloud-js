@@ -54,7 +54,7 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     // There are no resources to release
   }
 
-  protected async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {
+  public async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {
     const keySerialized = await derSerializePrivateKey(privateKey);
     await this.saveData(keySerialized, `i-${privateAddress}`);
   }

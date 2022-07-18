@@ -1,17 +1,13 @@
-import { PrivateKey } from '@relaycorp/relaynet-core';
+import { RsaPssPrivateKey } from '@relaycorp/relaynet-core';
 
 import { GcpKmsRsaPssProvider } from './GcpKmsRsaPssProvider';
 
-export class GcpKmsRsaPssPrivateKey extends PrivateKey {
+export class GcpKmsRsaPssPrivateKey extends RsaPssPrivateKey {
   constructor(
     public kmsKeyVersionPath: string,
     public readonly publicKey: CryptoKey,
     provider: GcpKmsRsaPssProvider,
   ) {
-    super(provider);
-
-    this.algorithm = publicKey.algorithm;
-    this.usages = ['sign'];
-    this.extractable = true; // The public key is exportable
+    super((publicKey.algorithm as any).hash.name, provider);
   }
 }

@@ -94,7 +94,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     await this.kmsClient.close();
   }
 
-  protected async saveIdentityKey(): Promise<void> {
+  public async saveIdentityKey(): Promise<void> {
     throw new GCPKeystoreError('Method is not supported');
   }
 
