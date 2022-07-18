@@ -68,7 +68,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
     const [response] = await wrapGCPCallError(
       this.kmsClient.asymmetricSign(
         { data: plaintext, dataCrc32c: { value: plaintextChecksum }, name: key.kmsKeyVersionPath },
-        { timeout: 500 },
+        { timeout: 1_000 },
       ),
       'KMS signature request failed',
     );
