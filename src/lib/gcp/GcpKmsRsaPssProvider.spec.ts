@@ -143,7 +143,7 @@ describe('onSign', () => {
     );
   });
 
-  test('Request should time out after 500ms', async () => {
+  test('Request should time out after 1000ms', async () => {
     const kmsClient = makeKmsClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
@@ -151,7 +151,7 @@ describe('onSign', () => {
 
     expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ timeout: 500 }),
+      expect.objectContaining({ timeout: 1_000 }),
     );
   });
 
