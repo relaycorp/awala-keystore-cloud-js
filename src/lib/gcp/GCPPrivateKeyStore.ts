@@ -2,7 +2,7 @@ import { KeyManagementServiceClient } from '@google-cloud/kms';
 import {
   derDeserializeRSAPublicKey,
   derSerializePublicKey,
-  getPrivateAddressFromIdentityKey,
+  getIdFromIdentityKey,
   IdentityKeyPair,
   RSAKeyGenOptions,
   SessionPrivateKeyData,
@@ -67,11 +67,11 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     const publicKeySerialized = await retrieveKMSPublicKey(kmsKeyVersionPath, this.kmsClient);
     const publicKey = await derDeserializeRSAPublicKey(publicKeySerialized);
     const privateKey = new GcpKmsRsaPssPrivateKey(kmsKeyVersionPath, publicKey, this.idKeyProvider);
-    const privateAddress = await getPrivateAddressFromIdentityKey(publicKey);
+    const id = await getIdFromIdentityKey(publicKey);
 
-    await this.linkKMSKeyVersion(kmsKeyVersionPath, privateAddress, publicKey);
+    await this.linkKMSKeyVersion(kmsKeyVersionPath, id, publicKey);
 
-    return { privateAddress, privateKey, publicKey };
+    return { id, privateKey, publicKey };
   }
 
   public async retrieveIdentityKey(privateAddress: string): Promise<GcpKmsRsaPssPrivateKey | null> {
@@ -129,7 +129,7 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
       privateAddress,
       peerPrivateAddress,
     );
-    return { keySerialized, peerPrivateAddress, privateAddress };
+    return { keySerialized, peerId: peerPrivateAddress, nodeId: privateAddress };
   }
 
   //region Identity key utilities

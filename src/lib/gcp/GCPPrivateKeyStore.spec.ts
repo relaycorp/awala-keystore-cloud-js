@@ -5,7 +5,7 @@ import {
   derDeserializeRSAPublicKey,
   derSerializePrivateKey,
   derSerializePublicKey,
-  getPrivateAddressFromIdentityKey,
+  getIdFromIdentityKey,
   KeyStoreError,
   SessionKeyPair,
   UnknownKeyError,
@@ -77,7 +77,7 @@ describe('Identity keys', () => {
     beforeAll(async () => {
       stubPublicKey = await derDeserializeRSAPublicKey(STUB_KMS_PUBLIC_KEY);
       stubPublicKeySerialized = bufferToArrayBuffer(STUB_KMS_PUBLIC_KEY);
-      stubPrivateAddress = await getPrivateAddressFromIdentityKey(stubPublicKey);
+      stubPrivateAddress = await getIdFromIdentityKey(stubPublicKey);
     });
 
     const mockRetrieveKMSPublicKey = mockSpy(
@@ -200,26 +200,26 @@ describe('Identity keys', () => {
       test('Private address should be stored', async () => {
         const store = new GCPPrivateKeyStore(makeKmsClient(), getDBConnection(), KMS_CONFIG);
 
-        const { privateAddress } = await store.generateIdentityKeyPair();
+        const { id } = await store.generateIdentityKeyPair();
 
-        await expect(getDocument(privateAddress)).resolves.toBeTruthy();
+        await expect(getDocument(id)).resolves.toBeTruthy();
       });
 
       test('Public key should be stored', async () => {
         const store = new GCPPrivateKeyStore(makeKmsClient(), getDBConnection(), KMS_CONFIG);
 
-        const { privateAddress, publicKey } = await store.generateIdentityKeyPair();
+        const { id, publicKey } = await store.generateIdentityKeyPair();
 
-        const document = await getDocument(privateAddress);
+        const document = await getDocument(id);
         expect(document!.publicKey.equals(await derSerializePublicKey(publicKey))).toBeTrue();
       });
 
       test('KMS key should be stored', async () => {
         const store = new GCPPrivateKeyStore(makeKmsClient(), getDBConnection(), KMS_CONFIG);
 
-        const { privateAddress } = await store.generateIdentityKeyPair();
+        const { id } = await store.generateIdentityKeyPair();
 
-        const document = await getDocument(privateAddress);
+        const document = await getDocument(id);
         expect(document!.kmsKey).toEqual(KMS_CONFIG.identityKeyId);
       });
 
@@ -231,9 +231,9 @@ describe('Identity keys', () => {
           KMS_CONFIG,
         );
 
-        const { privateAddress } = await store.generateIdentityKeyPair();
+        const { id } = await store.generateIdentityKeyPair();
 
-        const document = await getDocument(privateAddress);
+        const document = await getDocument(id);
         expect(document?.kmsKeyVersion).toEqual(kmsKeyVersion);
       });
 
@@ -278,9 +278,9 @@ describe('Identity keys', () => {
       test('Private address should match public key', async () => {
         const store = new GCPPrivateKeyStore(makeKmsClient(), getDBConnection(), KMS_CONFIG);
 
-        const { privateAddress } = await store.generateIdentityKeyPair();
+        const { id } = await store.generateIdentityKeyPair();
 
-        expect(privateAddress).toEqual(stubPrivateAddress);
+        expect(id).toEqual(stubPrivateAddress);
       });
     });
 
