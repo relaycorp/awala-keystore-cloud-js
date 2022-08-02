@@ -68,9 +68,9 @@ describe('Private key store', () => {
   test('Generate identity key pair', async () => {
     const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), getKMSConfig());
 
-    const { privateKey, privateAddress } = await store.generateIdentityKeyPair();
+    const { privateKey, id } = await store.generateIdentityKeyPair();
 
-    const privateKeyRetrieved = await store.retrieveIdentityKey(privateAddress);
+    const privateKeyRetrieved = await store.retrieveIdentityKey(id);
 
     expect(privateKeyRetrieved?.kmsKeyVersionPath).toEqual(
       (privateKey as GcpKmsRsaPssPrivateKey).kmsKeyVersionPath,
@@ -78,18 +78,14 @@ describe('Private key store', () => {
   });
 
   test('Save and retrieve session key', async () => {
-    const privateAddress = '0deadbeef';
-    const peerPrivateAddress = '0deadc0de';
+    const id = '0deadbeef';
+    const peerId = '0deadc0de';
     const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), getKMSConfig());
     const { privateKey, sessionKey } = await SessionKeyPair.generate();
 
-    await store.saveSessionKey(privateKey, sessionKey.keyId, privateAddress, peerPrivateAddress);
+    await store.saveSessionKey(privateKey, sessionKey.keyId, id, peerId);
 
-    const privateKeyRetrieved = await store.retrieveSessionKey(
-      sessionKey.keyId,
-      privateAddress,
-      peerPrivateAddress,
-    );
+    const privateKeyRetrieved = await store.retrieveSessionKey(sessionKey.keyId, id, peerId);
     await expect(derSerializePrivateKey(privateKeyRetrieved)).resolves.toEqual(
       await derSerializePrivateKey(privateKey),
     );
