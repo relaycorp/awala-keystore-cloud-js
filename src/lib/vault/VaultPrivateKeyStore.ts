@@ -78,8 +78,8 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     }
     return {
       keySerialized: keyData.privateKey,
-      peerPrivateAddress: (keyData as SessionKeyDataDecoded).peerPrivateAddress,
-      privateAddress: (keyData as SessionKeyDataDecoded).privateAddress,
+      peerId: (keyData as SessionKeyDataDecoded).peerPrivateAddress,
+      nodeId: (keyData as SessionKeyDataDecoded).privateAddress,
     };
   }
 

@@ -1,7 +1,7 @@
 import {
   derSerializePrivateKey,
   generateRSAKeyPair,
-  getPrivateAddressFromIdentityKey,
+  getIdFromIdentityKey,
   KeyStoreError,
   SessionKeyPair,
   UnknownKeyError,
@@ -129,11 +129,11 @@ describe('VaultPrivateKeyStore', () => {
     test('Identity key should be generated', async () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-      const { privateKey, privateAddress } = await store.generateIdentityKeyPair();
+      const { privateKey, id } = await store.generateIdentityKeyPair();
 
       expect(mockAxiosClient.post).toBeCalledTimes(1);
       const postCallArgs = mockAxiosClient.post.mock.calls[0];
-      expect(postCallArgs[0]).toEqual(`/i-${privateAddress}`);
+      expect(postCallArgs[0]).toEqual(`/i-${id}`);
       expect(postCallArgs[1]).toHaveProperty(
         'data.privateKey',
         base64Encode(await derSerializePrivateKey(privateKey)),
@@ -234,7 +234,7 @@ describe('VaultPrivateKeyStore', () => {
     test('Existing identity key should be returned', async () => {
       const senderKeyPair = await generateRSAKeyPair();
       const identityPrivateKey = senderKeyPair.privateKey;
-      const privateAddress = await getPrivateAddressFromIdentityKey(senderKeyPair.publicKey);
+      const nodeId = await getIdFromIdentityKey(senderKeyPair.publicKey);
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
@@ -245,11 +245,11 @@ describe('VaultPrivateKeyStore', () => {
       );
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-      const privateKey = await store.retrieveIdentityKey(privateAddress);
+      const privateKey = await store.retrieveIdentityKey(nodeId);
 
       expect(mockAxiosClient.get).toBeCalledTimes(1);
       const getCallArgs = mockAxiosClient.get.mock.calls[0];
-      expect(getCallArgs[0]).toEqual(`/i-${privateAddress}`);
+      expect(getCallArgs[0]).toEqual(`/i-${nodeId}`);
       await expect(derSerializePrivateKey(privateKey!)).resolves.toEqual(
         await derSerializePrivateKey(identityPrivateKey),
       );
