@@ -27,8 +27,8 @@ describe('VaultPrivateKeyStore', () => {
   const stubKvPath = 'pohttp-private-keys';
   const stubVaultToken = 'letmein';
 
-  const stubPrivateAddress = '0deadc0de';
-  const peerPrivateAddress = '0deadbeef';
+  const nodeId = '0deadc0de';
+  const peerId = '0deadbeef';
 
   let sessionKeyPair: SessionKeyPair;
   let sessionKeyIdHex: string;
@@ -145,7 +145,7 @@ describe('VaultPrivateKeyStore', () => {
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        stubPrivateAddress,
+        nodeId,
       );
 
       expect(mockAxiosClient.post).toBeCalledTimes(1);
@@ -155,7 +155,7 @@ describe('VaultPrivateKeyStore', () => {
         'data.privateKey',
         base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
       );
-      expect(postCallArgs[1]).toHaveProperty('data.peerPrivateAddress', undefined);
+      expect(postCallArgs[1]).toHaveProperty('data.peerId', undefined);
     });
 
     test('Bound session key should be stored', async () => {
@@ -163,8 +163,8 @@ describe('VaultPrivateKeyStore', () => {
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        stubPrivateAddress,
-        peerPrivateAddress,
+        nodeId,
+        peerId,
       );
 
       expect(mockAxiosClient.post).toBeCalledTimes(1);
@@ -174,7 +174,7 @@ describe('VaultPrivateKeyStore', () => {
         'data.privateKey',
         base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
       );
-      expect(postCallArgs[1]).toHaveProperty('data.peerPrivateAddress', peerPrivateAddress);
+      expect(postCallArgs[1]).toHaveProperty('data.peerId', peerId);
     });
 
     test('Axios errors should be wrapped', async () => {
@@ -233,25 +233,25 @@ describe('VaultPrivateKeyStore', () => {
 
     test('Existing identity key should be returned', async () => {
       const senderKeyPair = await generateRSAKeyPair();
-      const identityPrivateKey = senderKeyPair.privateKey;
-      const nodeId = await getIdFromIdentityKey(senderKeyPair.publicKey);
+      const senderPrivateKey = senderKeyPair.privateKey;
+      const senderId = await getIdFromIdentityKey(senderKeyPair.publicKey);
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
-            privateKey: base64Encode(await derSerializePrivateKey(identityPrivateKey)),
+            privateKey: base64Encode(await derSerializePrivateKey(senderPrivateKey)),
           },
           200,
         ),
       );
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-      const privateKey = await store.retrieveIdentityKey(nodeId);
+      const privateKey = await store.retrieveIdentityKey(senderId);
 
       expect(mockAxiosClient.get).toBeCalledTimes(1);
       const getCallArgs = mockAxiosClient.get.mock.calls[0];
-      expect(getCallArgs[0]).toEqual(`/i-${nodeId}`);
+      expect(getCallArgs[0]).toEqual(`/i-${senderId}`);
       await expect(derSerializePrivateKey(privateKey!)).resolves.toEqual(
-        await derSerializePrivateKey(identityPrivateKey),
+        await derSerializePrivateKey(senderPrivateKey),
       );
     });
 
@@ -259,7 +259,7 @@ describe('VaultPrivateKeyStore', () => {
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
-            privateAddress: stubPrivateAddress,
+            nodeId,
             privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
           },
           200,
@@ -269,7 +269,7 @@ describe('VaultPrivateKeyStore', () => {
 
       const privateKey = await store.retrieveUnboundSessionKey(
         sessionKeyPair.sessionKey.keyId,
-        stubPrivateAddress,
+        nodeId,
       );
 
       expect(mockAxiosClient.get).toBeCalledTimes(1);
@@ -284,8 +284,8 @@ describe('VaultPrivateKeyStore', () => {
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
-            peerPrivateAddress,
-            privateAddress: stubPrivateAddress,
+            peerId,
+            nodeId,
             privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
           },
           200,
@@ -295,8 +295,8 @@ describe('VaultPrivateKeyStore', () => {
 
       const privateKey = await store.retrieveSessionKey(
         sessionKeyPair.sessionKey.keyId,
-        stubPrivateAddress,
-        peerPrivateAddress,
+        nodeId,
+        peerId,
       );
 
       expect(mockAxiosClient.get).toBeCalledTimes(1);
@@ -311,8 +311,8 @@ describe('VaultPrivateKeyStore', () => {
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
-            peerPrivateAddress: `not-${peerPrivateAddress}`,
-            privateAddress: stubPrivateAddress,
+            peerId: `not-${peerId}`,
+            nodeId,
             privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
           },
           200,
@@ -321,11 +321,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
@@ -333,8 +329,8 @@ describe('VaultPrivateKeyStore', () => {
       mockAxiosClient.get.mockResolvedValue(
         makeVaultGETResponse(
           {
-            peerPrivateAddress,
-            privateAddress: `not-${stubPrivateAddress}`,
+            peerId,
+            nodeId: `not-${nodeId}`,
             privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
           },
           200,
@@ -343,11 +339,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
@@ -355,7 +347,7 @@ describe('VaultPrivateKeyStore', () => {
       mockAxiosClient.get.mockResolvedValue({ status: 404 });
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-      await expect(store.retrieveIdentityKey(stubPrivateAddress)).resolves.toBeNull();
+      await expect(store.retrieveIdentityKey(nodeId)).resolves.toBeNull();
     });
 
     test('Non-existing session key should raise an UnknownKeyError', async () => {
@@ -363,11 +355,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
@@ -377,11 +365,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toThrowWithMessage(
         KeyStoreError,
         `Failed to retrieve key: ${originalError.message}`,
@@ -393,11 +377,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toThrowWithMessage(
         KeyStoreError,
         'Failed to retrieve key: Vault returned a 204 response',
@@ -410,11 +390,7 @@ describe('VaultPrivateKeyStore', () => {
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          stubPrivateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toThrowWithMessage(
         KeyStoreError,
         `Failed to retrieve key: Vault returned a 204 response (${errorMessages.join(', ')})`,
