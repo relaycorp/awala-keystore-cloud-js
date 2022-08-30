@@ -1,6 +1,6 @@
 import { index, modelOptions, prop } from '@typegoose/typegoose';
 
-@index({ id: 1, privateAddress: 1, peerPrivateAddress: 1 })
+@index({ keyId: 1, nodeId: 1, peerId: 1 })
 @modelOptions({ schemaOptions: { timestamps: { createdAt: 'creationDate', updatedAt: false } } })
 export class GcpSessionKey {
   @prop({ required: true })
@@ -10,10 +10,10 @@ export class GcpSessionKey {
   public readonly creationDate!: Date;
 
   @prop({ required: true })
-  public readonly privateAddress!: string;
+  public readonly nodeId!: string;
 
   @prop()
-  public readonly peerPrivateAddress?: string;
+  public readonly peerId?: string;
 
   @prop({ required: true })
   public readonly privateKeyCiphertext!: Buffer;

@@ -42,8 +42,8 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     );
   }
 
-  public async retrieveIdentityKey(privateAddress: string): Promise<CryptoKey | null> {
-    const keyData = await this.retrieveData(`i-${privateAddress}`);
+  public async retrieveIdentityKey(nodeId: string): Promise<CryptoKey | null> {
+    const keyData = await this.retrieveData(`i-${nodeId}`);
     if (!keyData?.privateKey) {
       return null;
     }
@@ -54,21 +54,18 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     // There are no resources to release
   }
 
-  public async saveIdentityKey(privateAddress: string, privateKey: CryptoKey): Promise<void> {
+  public async saveIdentityKey(nodeId: string, privateKey: CryptoKey): Promise<void> {
     const keySerialized = await derSerializePrivateKey(privateKey);
-    await this.saveData(keySerialized, `i-${privateAddress}`);
+    await this.saveData(keySerialized, `i-${nodeId}`);
   }
 
   protected async saveSessionKeySerialized(
     keyId: string,
     keySerialized: Buffer,
-    privateAddress: string,
-    peerPrivateAddress?: string,
+    nodeId: string,
+    peerId?: string,
   ): Promise<void> {
-    await this.saveData(keySerialized, `s-${keyId}`, {
-      peerPrivateAddress,
-      privateAddress,
-    });
+    await this.saveData(keySerialized, `s-${keyId}`, { peerId, nodeId });
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
@@ -78,8 +75,8 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     }
     return {
       keySerialized: keyData.privateKey,
-      peerId: (keyData as SessionKeyDataDecoded).peerPrivateAddress,
-      nodeId: (keyData as SessionKeyDataDecoded).privateAddress,
+      peerId: (keyData as SessionKeyDataDecoded).peerId,
+      nodeId: (keyData as SessionKeyDataDecoded).nodeId,
     };
   }
 
@@ -114,8 +111,8 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
 
     const vaultData = response.data.data.data as KeyDataEncoded;
     return {
-      peerPrivateAddress: (vaultData as SessionKeyDataEncoded).peerPrivateAddress,
-      privateAddress: (vaultData as SessionKeyDataEncoded).privateAddress,
+      peerId: (vaultData as SessionKeyDataEncoded).peerId,
+      nodeId: (vaultData as SessionKeyDataEncoded).nodeId,
       privateKey: base64Decode(vaultData.privateKey),
     };
   }

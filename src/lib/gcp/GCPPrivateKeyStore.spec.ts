@@ -73,11 +73,11 @@ describe('Identity keys', () => {
   describe('generateIdentityKeyPair', () => {
     let stubPublicKey: CryptoKey;
     let stubPublicKeySerialized: ArrayBuffer;
-    let stubPrivateAddress: string;
+    let stubId: string;
     beforeAll(async () => {
       stubPublicKey = await derDeserializeRSAPublicKey(STUB_KMS_PUBLIC_KEY);
       stubPublicKeySerialized = bufferToArrayBuffer(STUB_KMS_PUBLIC_KEY);
-      stubPrivateAddress = await getIdFromIdentityKey(stubPublicKey);
+      stubId = await getIdFromIdentityKey(stubPublicKey);
     });
 
     const mockRetrieveKMSPublicKey = mockSpy(
@@ -237,8 +237,8 @@ describe('Identity keys', () => {
         expect(document?.kmsKeyVersion).toEqual(kmsKeyVersion);
       });
 
-      async function getDocument(privateAddress: string): Promise<GcpIdentityKey | null> {
-        return getGcpIdentityKeyModel().findOne({ privateAddress }).exec();
+      async function getDocument(nodeId: string): Promise<GcpIdentityKey | null> {
+        return getGcpIdentityKeyModel().findOne({ nodeId }).exec();
       }
     });
 
@@ -280,7 +280,7 @@ describe('Identity keys', () => {
 
         const { id } = await store.generateIdentityKeyPair();
 
-        expect(id).toEqual(stubPrivateAddress);
+        expect(id).toEqual(stubId);
       });
     });
 
@@ -313,7 +313,7 @@ describe('Identity keys', () => {
   });
 
   describe('retrieveIdentityKey', () => {
-    const PRIVATE_ADDRESS = '0deadbeef';
+    const ID = '0deadbeef';
 
     test('Null should be returned if key is not found', async () => {
       const store = new GCPPrivateKeyStore(
@@ -330,7 +330,7 @@ describe('Identity keys', () => {
       const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
       await saveKey();
 
-      await expect(store.retrieveIdentityKey(PRIVATE_ADDRESS)).resolves.toBeTruthy();
+      await expect(store.retrieveIdentityKey(ID)).resolves.toBeTruthy();
     });
 
     test('Key version path should be populated correctly', async () => {
@@ -338,7 +338,7 @@ describe('Identity keys', () => {
       const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
       await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
+      const privateKey = await store.retrieveIdentityKey(ID);
 
       const kmsKeyVersionPath = kmsClient.cryptoKeyVersionPath(
         GCP_PROJECT,
@@ -358,7 +358,7 @@ describe('Identity keys', () => {
       );
       await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
+      const privateKey = await store.retrieveIdentityKey(ID);
 
       expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
       const publicKeySerialized = await derSerializePublicKey(
@@ -375,7 +375,7 @@ describe('Identity keys', () => {
       );
       await saveKey();
 
-      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
+      const privateKey = await store.retrieveIdentityKey(ID);
 
       expect(privateKey).toBeInstanceOf(GcpKmsRsaPssPrivateKey);
       expect((privateKey as GcpKmsRsaPssPrivateKey).provider).toBe(store.idKeyProvider);
@@ -387,7 +387,7 @@ describe('Identity keys', () => {
       const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
       await saveKey({ kmsKey });
 
-      const privateKey = await store.retrieveIdentityKey(PRIVATE_ADDRESS);
+      const privateKey = await store.retrieveIdentityKey(ID);
 
       expect(
         kmsClient.matchCryptoKeyFromCryptoKeyVersionName(privateKey!.kmsKeyVersionPath),
@@ -397,7 +397,7 @@ describe('Identity keys', () => {
     async function saveKey({ kmsKey } = { kmsKey: KMS_CONFIG.identityKeyId }): Promise<void> {
       const model = getGcpIdentityKeyModel();
       await model.create({
-        privateAddress: PRIVATE_ADDRESS,
+        nodeId: ID,
         publicKey: STUB_KMS_PUBLIC_KEY,
         kmsKey,
         kmsKeyVersion: 1,
@@ -426,8 +426,8 @@ describe('Identity keys', () => {
 });
 
 describe('Session keys', () => {
-  const privateAddress = '0deadc0de';
-  const peerPrivateAddress = '0deadbeef';
+  const nodeId = '0deadc0de';
+  const peerId = '0deadbeef';
 
   let sessionKeyPair: SessionKeyPair;
   let kmsSessionKeyPath: string;
@@ -450,51 +450,51 @@ describe('Session keys', () => {
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
+        nodeId,
       );
 
       await expect(getDocument(sessionKeyPair.sessionKey.keyId)).resolves.toBeTruthy();
     });
 
-    test('Node private address should be stored', async () => {
+    test('Node id should be stored', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
 
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
-        peerPrivateAddress,
+        nodeId,
+        peerId,
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.privateAddress).toEqual(privateAddress);
+      expect(document?.nodeId).toEqual(nodeId);
     });
 
-    test('Peer private address should be stored', async () => {
+    test('Peer id should be stored', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
 
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
-        peerPrivateAddress,
+        nodeId,
+        peerId,
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.peerPrivateAddress).toEqual(peerPrivateAddress);
+      expect(document?.peerId).toEqual(peerId);
     });
 
-    test('Peer private address should not be stored if key is unbound', async () => {
+    test('Peer id should not be stored if key is unbound', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
 
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
+        nodeId,
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
-      expect(document?.peerPrivateAddress).toBeUndefined();
+      expect(document?.peerId).toBeUndefined();
     });
 
     test('Private key should be stored encrypted', async () => {
@@ -508,7 +508,7 @@ describe('Session keys', () => {
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
+        nodeId,
       );
 
       const document = await getDocument(sessionKeyPair.sessionKey.keyId);
@@ -522,7 +522,7 @@ describe('Session keys', () => {
       await store.saveSessionKey(
         sessionKeyPair.privateKey,
         sessionKeyPair.sessionKey.keyId,
-        privateAddress,
+        nodeId,
       );
 
       const afterDate = new Date();
@@ -539,7 +539,7 @@ describe('Session keys', () => {
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -555,7 +555,7 @@ describe('Session keys', () => {
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -573,7 +573,7 @@ describe('Session keys', () => {
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
         const privateKeySerialized = await derSerializePrivateKey(sessionKeyPair.privateKey);
@@ -593,11 +593,7 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
+          store.saveSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId, nodeId),
           KeyStoreError,
         );
 
@@ -616,11 +612,7 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
+          store.saveSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId, nodeId),
           KeyStoreError,
         );
 
@@ -638,28 +630,24 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
+          store.saveSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId, nodeId),
           KeyStoreError,
         );
 
         expect(error.cause()?.message).toEqual(`KMS used the wrong encryption key (${kmsKeyName})`);
       });
 
-      test('AAD should be node private address if key is unbound', async () => {
+      test('AAD should be node id if key is unbound', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
 
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
-        const additionalAuthenticatedData = Buffer.from(privateAddress);
+        const additionalAuthenticatedData = Buffer.from(nodeId);
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
           expect.objectContaining({
             additionalAuthenticatedData,
@@ -671,18 +659,18 @@ describe('Session keys', () => {
         );
       });
 
-      test('ADD should be node and peer private address if key is bound', async () => {
+      test('ADD should be node and peer id if key is bound', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
 
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
+          nodeId,
+          peerId,
         );
 
-        const additionalAuthenticatedData = Buffer.from(`${privateAddress},${peerPrivateAddress}`);
+        const additionalAuthenticatedData = Buffer.from(`${nodeId},${peerId}`);
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
           expect.objectContaining({
             additionalAuthenticatedData,
@@ -701,7 +689,7 @@ describe('Session keys', () => {
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -717,7 +705,7 @@ describe('Session keys', () => {
         await store.saveSessionKey(
           sessionKeyPair.privateKey,
           sessionKeyPair.sessionKey.keyId,
-          privateAddress,
+          nodeId,
         );
 
         expect(kmsClient.encrypt).toHaveBeenCalledWith(
@@ -735,11 +723,7 @@ describe('Session keys', () => {
         );
 
         const error = await catchPromiseRejection(
-          store.saveSessionKey(
-            sessionKeyPair.privateKey,
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-          ),
+          store.saveSessionKey(sessionKeyPair.privateKey, sessionKeyPair.sessionKey.keyId, nodeId),
           KeyStoreError,
         );
 
@@ -793,19 +777,15 @@ describe('Session keys', () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
 
       await expect(
-        store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, privateAddress),
+        store.retrieveUnboundSessionKey(sessionKeyPair.sessionKey.keyId, nodeId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
     test('Unbound key should be returned regardless of peer', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
-      await saveKey({ peerPrivateAddress: undefined });
+      await saveKey({ peerId: undefined });
 
-      const key = await store.retrieveSessionKey(
-        sessionKeyPair.sessionKey.keyId,
-        privateAddress,
-        peerPrivateAddress,
-      );
+      const key = await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
       await expect(derSerializePrivateKey(key)).resolves.toEqual(
         await derSerializePrivateKey(sessionKeyPair.privateKey),
@@ -814,39 +794,27 @@ describe('Session keys', () => {
 
     test('Bound key should not be returned if owner does not match', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
-      await saveKey({ privateAddress: `not-${privateAddress}` });
+      await saveKey({ nodeId: `not-${nodeId}` });
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
     test('Bound key should not be returned if peer does not match', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
-      await saveKey({ peerPrivateAddress: `not-${peerPrivateAddress}` });
+      await saveKey({ peerId: `not-${peerId}` });
 
       await expect(
-        store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        ),
+        store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
       ).rejects.toBeInstanceOf(UnknownKeyError);
     });
 
     test('Bound key should be returned if peer matches', async () => {
       const store = new GCPPrivateKeyStore(makeKMSClient(), getDBConnection(), KMS_CONFIG);
-      await saveKey({ peerPrivateAddress });
+      await saveKey({ peerId });
 
-      const key = await store.retrieveSessionKey(
-        sessionKeyPair.sessionKey.keyId,
-        privateAddress,
-        peerPrivateAddress,
-      );
+      const key = await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
       await expect(derSerializePrivateKey(key)).resolves.toEqual(
         await derSerializePrivateKey(sessionKeyPair.privateKey),
@@ -859,11 +827,7 @@ describe('Session keys', () => {
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({ name: kmsSessionKeyPath }),
@@ -877,11 +841,7 @@ describe('Session keys', () => {
         const ciphertext = mockEncrypt(await derSerializePrivateKey(sessionKeyPair.privateKey));
         await saveKey({ privateKeyCiphertext: ciphertext });
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({ ciphertext: expect.toSatisfy((c) => c.equals(ciphertext)) }),
@@ -894,11 +854,7 @@ describe('Session keys', () => {
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
         const ciphertext = mockEncrypt(await derSerializePrivateKey(sessionKeyPair.privateKey));
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
@@ -915,11 +871,7 @@ describe('Session keys', () => {
         await saveKey();
 
         const error = await catchPromiseRejection(
-          store.retrieveSessionKey(
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-            peerPrivateAddress,
-          ),
+          store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
           KeyStoreError,
         );
 
@@ -928,18 +880,14 @@ describe('Session keys', () => {
         );
       });
 
-      test('AAD should be node private address if key is unbound', async () => {
+      test('AAD should be node id if key is unbound', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
-        await saveKey({ peerPrivateAddress: undefined });
+        await saveKey({ peerId: undefined });
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
-        const additionalAuthenticatedData = Buffer.from(privateAddress);
+        const additionalAuthenticatedData = Buffer.from(nodeId);
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({
             additionalAuthenticatedData,
@@ -951,18 +899,14 @@ describe('Session keys', () => {
         );
       });
 
-      test('ADD should be node and peer private address if key is bound', async () => {
+      test('ADD should be node and peer id if key is bound', async () => {
         const kmsClient = makeKMSClient();
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
-        const additionalAuthenticatedData = Buffer.from(`${privateAddress},${peerPrivateAddress}`);
+        const additionalAuthenticatedData = Buffer.from(`${nodeId},${peerId}`);
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.objectContaining({
             additionalAuthenticatedData,
@@ -979,11 +923,7 @@ describe('Session keys', () => {
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.anything(),
@@ -996,11 +936,7 @@ describe('Session keys', () => {
         const store = new GCPPrivateKeyStore(kmsClient, getDBConnection(), KMS_CONFIG);
         await saveKey();
 
-        await store.retrieveSessionKey(
-          sessionKeyPair.sessionKey.keyId,
-          privateAddress,
-          peerPrivateAddress,
-        );
+        await store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId);
 
         expect(kmsClient.decrypt).toHaveBeenCalledWith(
           expect.anything(),
@@ -1018,11 +954,7 @@ describe('Session keys', () => {
         await saveKey();
 
         const error = await catchPromiseRejection(
-          store.retrieveSessionKey(
-            sessionKeyPair.sessionKey.keyId,
-            privateAddress,
-            peerPrivateAddress,
-          ),
+          store.retrieveSessionKey(sessionKeyPair.sessionKey.keyId, nodeId, peerId),
           KeyStoreError,
         );
 
@@ -1046,18 +978,16 @@ describe('Session keys', () => {
     }
 
     interface SaveKeyProps {
-      readonly privateAddress: string;
-      readonly peerPrivateAddress?: string;
+      readonly nodeId: string;
+      readonly peerId?: string;
       readonly privateKeyCiphertext: Buffer;
     }
 
     async function saveKey(key: Partial<SaveKeyProps> = {}): Promise<void> {
       const model = getGcpSessionKeyModel();
       await model.create({
-        privateAddress: key.privateAddress ?? privateAddress,
-        peerPrivateAddress: Object.getOwnPropertyNames(key).includes('peerPrivateAddress')
-          ? key.peerPrivateAddress
-          : peerPrivateAddress,
+        nodeId: key.nodeId ?? nodeId,
+        peerId: Object.getOwnPropertyNames(key).includes('peerId') ? key.peerId : peerId,
         keyId: sessionKeyPair.sessionKey.keyId.toString('hex'),
         privateKeyCiphertext:
           key.privateKeyCiphertext ??
