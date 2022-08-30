@@ -74,8 +74,8 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     return { id, privateKey, publicKey };
   }
 
-  public async retrieveIdentityKey(privateAddress: string): Promise<GcpKmsRsaPssPrivateKey | null> {
-    const keyData = await this.idKeyModel.findOne({ privateAddress }).exec();
+  public async retrieveIdentityKey(nodeId: string): Promise<GcpKmsRsaPssPrivateKey | null> {
+    const keyData = await this.idKeyModel.findOne({ nodeId }).exec();
     if (!keyData) {
       return null;
     }
@@ -101,18 +101,14 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   protected async saveSessionKeySerialized(
     keyId: string,
     keySerialized: Buffer,
-    privateAddress: string,
-    peerPrivateAddress?: string,
+    nodeId: string,
+    peerId?: string,
   ): Promise<void> {
-    const privateKeyCiphertext = await this.encryptSessionPrivateKey(
-      keySerialized,
-      privateAddress,
-      peerPrivateAddress,
-    );
+    const privateKeyCiphertext = await this.encryptSessionPrivateKey(keySerialized, nodeId, peerId);
     await this.sessionKeyModel.create({
       keyId,
-      privateAddress,
-      peerPrivateAddress,
+      nodeId,
+      peerId,
       privateKeyCiphertext,
     });
   }
@@ -122,14 +118,14 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     if (!document) {
       return null;
     }
-    const peerPrivateAddress = document.peerPrivateAddress;
-    const privateAddress = document.privateAddress;
+    const nodeId = document.nodeId;
+    const peerId = document.peerId;
     const keySerialized = await this.decryptSessionPrivateKey(
       document.privateKeyCiphertext,
-      privateAddress,
-      peerPrivateAddress,
+      nodeId,
+      peerId,
     );
-    return { keySerialized, peerId: peerPrivateAddress, nodeId: privateAddress };
+    return { keySerialized, peerId, nodeId };
   }
 
   //region Identity key utilities
@@ -166,13 +162,13 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
 
   private async linkKMSKeyVersion(
     kmsKeyVersionPath: string,
-    privateAddress: string,
+    nodeId: string,
     publicKey: CryptoKey,
   ): Promise<void> {
     const kmsKeyVersion =
       this.kmsClient.matchCryptoKeyVersionFromCryptoKeyVersionName(kmsKeyVersionPath);
     await this.idKeyModel.create({
-      privateAddress,
+      nodeId,
       publicKey: await derSerializePublicKey(publicKey),
       kmsKey: this.kmsConfig.identityKeyId,
       kmsKeyVersion,
@@ -184,11 +180,11 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
 
   private async encryptSessionPrivateKey(
     keySerialized: Buffer,
-    privateAddress: string,
-    peerPrivateAddress?: string,
+    nodeId: string,
+    peerId?: string,
   ): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
-    const aadParams = getAADForEncryption(privateAddress, peerPrivateAddress);
+    const aadParams = getAADForEncryption(nodeId, peerId);
     const [encryptResponse] = await wrapGCPCallError(
       this.kmsClient.encrypt(
         {
@@ -216,12 +212,12 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
 
   private async decryptSessionPrivateKey(
     privateKeyCiphertext: Buffer,
-    privateAddress: string,
-    peerPrivateAddress?: string,
+    nodeId: string,
+    peerId?: string,
   ): Promise<Buffer> {
     const kmsKeyName = await this.getKMSKeyForSessionKey();
     const ciphertextCRC32C = calculateCRC32C(privateKeyCiphertext);
-    const aadParams = getAADForEncryption(privateAddress, peerPrivateAddress);
+    const aadParams = getAADForEncryption(nodeId, peerId);
     const [decryptionResponse] = await wrapGCPCallError(
       this.kmsClient.decrypt(
         {
@@ -258,13 +254,8 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
   }
 }
 
-function getAADForEncryption(
-  privateAddress: string,
-  peerPrivateAddress?: string,
-): ADDRequestParams {
-  const additionalAuthenticatedData = Buffer.from(
-    peerPrivateAddress ? `${privateAddress},${peerPrivateAddress}` : privateAddress,
-  );
+function getAADForEncryption(nodeId: string, peerId?: string): ADDRequestParams {
+  const additionalAuthenticatedData = Buffer.from(peerId ? `${nodeId},${peerId}` : nodeId);
   const additionalAuthenticatedDataCrc32c = {
     value: calculateCRC32C(additionalAuthenticatedData),
   };

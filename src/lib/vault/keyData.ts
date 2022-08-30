@@ -5,8 +5,8 @@ interface BaseKeyDataEncoded {
 interface IdentityKeyDataEncoded extends BaseKeyDataEncoded {}
 
 export interface SessionKeyDataEncoded extends BaseKeyDataEncoded {
-  readonly privateAddress: string;
-  readonly peerPrivateAddress?: string;
+  readonly nodeId: string;
+  readonly peerId?: string;
 }
 
 export type KeyDataEncoded = IdentityKeyDataEncoded | SessionKeyDataEncoded;
@@ -18,8 +18,8 @@ interface BaseKeyDataDecoded {
 interface IdentityKeyDataDecoded extends BaseKeyDataDecoded {}
 
 export interface SessionKeyDataDecoded extends BaseKeyDataDecoded {
-  readonly peerPrivateAddress: string;
-  readonly privateAddress: string;
+  readonly peerId: string;
+  readonly nodeId: string;
 }
 
 export type KeyDataDecoded = IdentityKeyDataDecoded | SessionKeyDataDecoded;

@@ -1,9 +1,9 @@
 import { index, prop } from '@typegoose/typegoose';
 
-@index({ privateAddress: 1 })
+@index({ nodeId: 1 })
 export class GcpIdentityKey {
   @prop({ required: true })
-  public readonly privateAddress!: string;
+  public readonly nodeId!: string;
 
   /**
    * The DER serialization of the respective public key.
