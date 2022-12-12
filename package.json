@@ -42,7 +42,7 @@
   "dependencies": {
     "@google-cloud/kms": "^3.1.0",
     "@relaycorp/relaynet-core": "< 2.0",
-    "@typegoose/typegoose": "< 10.0",
+    "@typegoose/typegoose": "< 11.0",
     "axios": "^1.2.0",
     "env-var": "^7.3.0",
     "fast-crc32c": "^2.0.0",
@@ -51,7 +51,7 @@
   },
   "peerDependencies": {
     "@relaycorp/relaynet-core": ">=1.81.6, < 2.0",
-    "@typegoose/typegoose": "< 10.0",
+    "@typegoose/typegoose": "< 11.0",
     "mongoose": "< 7.0",
     "webcrypto-core": "< 2.0"
   },
