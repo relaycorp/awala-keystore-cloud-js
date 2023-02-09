@@ -40,10 +40,10 @@
     "node": ">=14"
   },
   "dependencies": {
-    "@google-cloud/kms": "^3.2.0",
+    "@google-cloud/kms": "^3.3.0",
     "@relaycorp/relaynet-core": "< 2.0",
     "@typegoose/typegoose": "< 11.0",
-    "axios": "^1.2.6",
+    "axios": "^1.3.2",
     "env-var": "^7.3.0",
     "fast-crc32c": "^2.0.0",
     "mongoose": "< 7.0",
@@ -67,7 +67,7 @@
     "ts-jest": "^28.0.8",
     "ts-node": "^10.9.1",
     "tslint": "^6.1.3",
-    "typedoc": "^0.23.23",
+    "typedoc": "^0.23.24",
     "typescript": "^4.8.4"
   },
   "prettier": "@relaycorp/shared-config/.prettierrc.json",
