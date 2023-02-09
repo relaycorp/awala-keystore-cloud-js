@@ -4,7 +4,13 @@ import { bufferToArrayBuffer } from '../utils/buffer';
 import { sleep } from '../utils/timing';
 import { wrapGCPCallError } from './gcpUtils';
 
-export const KMS_REQUEST_OPTIONS = { timeout: 3_000, maxRetries: 5 };
+/**
+ * The official KMS library will often try to make API requests before the authentication with the
+ * Application Default Credentials is complete, which will result in errors like "Exceeded
+ * maximum number of retries before any response was received". We're working around that by
+ * retrying a few times.
+ */
+export const KMS_REQUEST_OPTIONS = { timeout: 2_000, maxRetries: 8 };
 
 export async function retrieveKMSPublicKey(
   kmsKeyVersionName: string,
