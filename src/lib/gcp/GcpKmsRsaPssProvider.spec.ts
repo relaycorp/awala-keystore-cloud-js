@@ -143,7 +143,7 @@ describe('onSign', () => {
     );
   });
 
-  test('Request should time out after 2 seconds', async () => {
+  test('Request should time out after 3 seconds', async () => {
     const kmsClient = makeKmsClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
@@ -151,11 +151,11 @@ describe('onSign', () => {
 
     expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ timeout: 2_000 }),
+      expect.objectContaining({ timeout: 3_000 }),
     );
   });
 
-  test('Request should be retried up to 8 times', async () => {
+  test('Request should be retried', async () => {
     const kmsClient = makeKmsClient();
     const provider = new GcpKmsRsaPssProvider(kmsClient);
 
@@ -163,7 +163,7 @@ describe('onSign', () => {
 
     expect(kmsClient.asymmetricSign).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ maxRetries: 8 }),
+      expect.objectContaining({ maxRetries: 10 }),
     );
   });
 

@@ -10,7 +10,7 @@ import { wrapGCPCallError } from './gcpUtils';
  * maximum number of retries before any response was received". We're working around that by
  * retrying a few times.
  */
-export const KMS_REQUEST_OPTIONS = { timeout: 2_000, maxRetries: 8 };
+export const KMS_REQUEST_OPTIONS = { timeout: 3_000, maxRetries: 10 };
 
 export async function retrieveKMSPublicKey(
   kmsKeyVersionName: string,
