@@ -22,9 +22,10 @@ import {
   initPrivateKeystoreFromEnv,
 } from '@relaycorp/awala-keystore-cloud';
 import type { PrivateKeyStore } from '@relaycorp/relaynet-core';
+import type { Connection } from 'mongoose';
 
-function initPrivateKeystore(): PrivateKeyStore {
-  return initPrivateKeystoreFromEnv(Adapter.GCP);
+function initPrivateKeystore(dbConnection: Connection): PrivateKeyStore {
+  return initPrivateKeystoreFromEnv(Adapter.GCP, dbConnection);
 }
 ```
 
