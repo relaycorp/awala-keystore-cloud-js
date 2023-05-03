@@ -21,9 +21,9 @@ import {
   Adapter,
   initPrivateKeystoreFromEnv,
 } from '@relaycorp/awala-keystore-cloud';
-import { PrivateKeyStore } from '@relaycorp/relaynet-core';
+import type { PrivateKeyStore } from '@relaycorp/relaynet-core';
 
-async function initPrivateKeystore(): Promise<PrivateKeyStore> {
+function initPrivateKeystore(): PrivateKeyStore {
   return initPrivateKeystoreFromEnv(Adapter.GCP);
 }
 ```
