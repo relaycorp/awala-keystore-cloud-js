@@ -14,10 +14,10 @@ const ADAPTER_INITIALISERS = {
 };
 
 export function initPrivateKeystoreFromEnv(
-  adapter: Adapter,
+  adapter: string | Adapter,
   dbConnection: Connection,
 ): CloudPrivateKeystore {
-  const init = ADAPTER_INITIALISERS[adapter];
+  const init = ADAPTER_INITIALISERS[adapter as unknown as Adapter];
   if (!init) {
     throw new CloudKeystoreError(`Invalid private keystore adapter (${adapter})`);
   }
