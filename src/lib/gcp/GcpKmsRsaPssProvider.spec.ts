@@ -251,7 +251,7 @@ describe('onExportKey', () => {
 
       await expect(provider.onExportKey(format, privateKey)).rejects.toThrowWithMessage(
         GCPKeystoreError,
-        'Private key cannot be exported',
+        `Private key cannot be exported (requested format: ${format})`,
       );
     },
   );

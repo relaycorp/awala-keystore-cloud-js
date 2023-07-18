@@ -33,7 +33,7 @@ export class GcpKmsRsaPssProvider extends RsaPssProvider {
 
   public async onExportKey(format: KeyFormat, key: CryptoKey): Promise<ArrayBuffer> {
     if (format !== 'spki') {
-      throw new GCPKeystoreError('Private key cannot be exported');
+      throw new GCPKeystoreError(`Private key cannot be exported (requested format: ${format})`);
     }
     if (!(key instanceof GcpKmsRsaPssPrivateKey)) {
       throw new GCPKeystoreError('Key is not managed by KMS');
