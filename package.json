@@ -29,8 +29,6 @@
     "static-checks:lint": "tslint --project .",
     "static-checks:prettier": "prettier \"src/**/*.ts\" --list-different",
     "test": "jest --coverage",
-    "test:ci:unit": "run-s build test:ci:unit:jest",
-    "test:ci:unit:jest": "jest --config jest.config.ci.js --coverage",
     "test:integration": "exit 0",
     "test:integration:local": "jest --config src/functional_tests/jest.config.js --runInBand --detectOpenHandles",
     "doc-api": "typedoc src/index.ts --out build/docs",
