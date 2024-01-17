@@ -94,7 +94,7 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     metadata: Omit<KeyDataEncoded, 'privateKey'> = {},
   ): Promise<void> {
     const keyBase64 = base64Encode(keySerialized);
-    const data: KeyDataEncoded = { privateKey: keyBase64, ...(metadata ?? {}) };
+    const data: KeyDataEncoded = { privateKey: keyBase64, ...metadata };
     const response = await this.axiosClient.post(`/${keyId}`, { data });
     if (response.status !== 200 && response.status !== 204) {
       throw new VaultStoreError(
