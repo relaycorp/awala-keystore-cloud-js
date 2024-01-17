@@ -128,6 +128,22 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     return { keySerialized, peerId, nodeId };
   }
 
+  protected override async retrieveLatestUnboundSessionKeySerialised(
+    nodeId: string,
+  ): Promise<Buffer | null> {
+    const document = await this.sessionKeyModel
+      .findOne(
+        { nodeId, peerId: undefined },
+        { privateKeyCiphertext: 1 },
+        { sort: { creationDate: -1 } },
+      )
+      .exec();
+    if (!document) {
+      return null;
+    }
+    return this.decryptSessionPrivateKey(document.privateKeyCiphertext, nodeId);
+  }
+
   //region Identity key utilities
 
   private async validateExistingSigningKey(
