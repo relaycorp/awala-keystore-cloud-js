@@ -1043,7 +1043,8 @@ describe('Session keys', () => {
 
       const key = await store.retrieveUnboundSessionPublicKey(nodeId);
 
-      await expect(derSerializePublicKey(key!)).resolves.toStrictEqual(
+      expect(key?.keyId).toMatchObject(latestKey.sessionKey.keyId);
+      await expect(derSerializePublicKey(key!.publicKey)).resolves.toStrictEqual(
         await derSerializePublicKey(latestKey.sessionKey.publicKey),
       );
     });

@@ -159,6 +159,7 @@ describe('VaultPrivateKeyStore', () => {
       });
       expect(mockAxiosClient.post).toHaveBeenCalledWith(`/s-node-${nodeId}`, {
         data: {
+          keyId: sessionKeyIdHex,
           privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
         },
       });
@@ -416,6 +417,7 @@ describe('VaultPrivateKeyStore', () => {
         mockAxiosClient.get.mockResolvedValue(
           makeVaultGETResponse(
             {
+              keyId: sessionKeyPair.sessionKey.keyId.toString('hex'),
               privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
             },
             200,
@@ -423,10 +425,11 @@ describe('VaultPrivateKeyStore', () => {
         );
         const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-        const publicKey = await store.retrieveUnboundSessionPublicKey(nodeId);
+        const key = await store.retrieveUnboundSessionPublicKey(nodeId);
 
         expect(mockAxiosClient.get).toHaveBeenCalledWith(`/s-node-${nodeId}`);
-        await expect(derSerializePublicKey(publicKey!)).resolves.toEqual(
+        expect(key?.keyId).toMatchObject(sessionKeyPair.sessionKey.keyId);
+        await expect(derSerializePublicKey(key!.publicKey)).resolves.toEqual(
           await derSerializePublicKey(sessionKeyPair.sessionKey.publicKey),
         );
       });
