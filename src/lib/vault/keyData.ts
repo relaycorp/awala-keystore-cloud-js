@@ -22,4 +22,9 @@ export interface SessionKeyDataDecoded extends BaseKeyDataDecoded {
   readonly nodeId: string;
 }
 
-export type KeyDataDecoded = IdentityKeyDataDecoded | SessionKeyDataDecoded;
+interface InitialSessionKeyDataDecoded extends BaseKeyDataDecoded {}
+
+export type KeyDataDecoded =
+  | IdentityKeyDataDecoded
+  | SessionKeyDataDecoded
+  | InitialSessionKeyDataDecoded;

@@ -5,7 +5,9 @@ export async function catchPromiseRejection<ErrorType extends Error>(
   try {
     await promise;
   } catch (error) {
-    expect(error).toBeInstanceOf(errorClass);
+    if (!(error instanceof errorClass)) {
+      throw error;
+    }
     return error as ErrorType;
   }
   throw new Error('Expected promise to throw');
