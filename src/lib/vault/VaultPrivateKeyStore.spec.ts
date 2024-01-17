@@ -159,6 +159,7 @@ describe('VaultPrivateKeyStore', () => {
       });
       expect(mockAxiosClient.post).toHaveBeenCalledWith(`/s-node-${nodeId}`, {
         data: {
+          keyId: sessionKeyIdHex,
           privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
         },
       });

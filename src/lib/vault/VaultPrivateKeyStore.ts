@@ -72,7 +72,7 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
 
     if (!peerId) {
       // The key is unbound, so upsert it as the unbound key for the node
-      await this.saveData(keySerialized, `s-node-${nodeId}`);
+      await this.saveData(keySerialized, `s-node-${nodeId}`, { keyId });
     }
   }
 
@@ -91,7 +91,7 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
   private async saveData(
     keySerialized: Buffer,
     keyId: string,
-    metadata: Omit<KeyDataEncoded, 'privateKey'> | null = null,
+    metadata: Omit<KeyDataEncoded, 'privateKey'> = {},
   ): Promise<void> {
     const keyBase64 = base64Encode(keySerialized);
     const data: KeyDataEncoded = { privateKey: keyBase64, ...(metadata ?? {}) };
