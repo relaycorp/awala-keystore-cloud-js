@@ -66,6 +66,11 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     peerId?: string,
   ): Promise<void> {
     await this.saveData(keySerialized, `s-${keyId}`, { peerId, nodeId });
+
+    if (!peerId) {
+      // The key is unbound, so upsert it as the unbound key for the node
+      await this.saveData(keySerialized, `s-node-${nodeId}`);
+    }
   }
 
   protected async retrieveSessionKeyData(keyId: string): Promise<SessionPrivateKeyData | null> {
@@ -83,10 +88,10 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
   private async saveData(
     keySerialized: Buffer,
     keyId: string,
-    keyData: Omit<KeyDataEncoded, 'privateKey'> = {},
+    metadata: Omit<KeyDataEncoded, 'privateKey'> | null = null,
   ): Promise<void> {
     const keyBase64 = base64Encode(keySerialized);
-    const data: KeyDataEncoded = { privateKey: keyBase64, ...keyData };
+    const data: KeyDataEncoded = { privateKey: keyBase64, ...(metadata ?? {}) };
     const response = await this.axiosClient.post(`/${keyId}`, { data });
     if (response.status !== 200 && response.status !== 204) {
       throw new VaultStoreError(
@@ -94,6 +99,13 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
         response.data.errors,
       );
     }
+  }
+
+  protected override async retrieveLatestUnboundSessionKeySerialised(
+    nodeId: string,
+  ): Promise<Buffer | null> {
+    const data = await this.retrieveData(`s-node-${nodeId}`);
+    return data?.privateKey ?? null;
   }
 
   private async retrieveData(keyId: string): Promise<KeyDataDecoded | null> {

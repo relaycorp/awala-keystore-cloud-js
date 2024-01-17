@@ -1,5 +1,6 @@
 import {
   derSerializePrivateKey,
+  derSerializePublicKey,
   generateRSAKeyPair,
   getIdFromIdentityKey,
   KeyStoreError,
@@ -13,6 +14,7 @@ import * as https from 'https';
 import { catchPromiseRejection } from '../../testUtils/promises';
 import { base64Encode } from '../utils/base64';
 import { VaultPrivateKeyStore } from './VaultPrivateKeyStore';
+import { VaultStoreError } from './VaultStoreError';
 
 describe('VaultPrivateKeyStore', () => {
   const mockAxiosCreate = jest.spyOn(axios, 'create');
@@ -148,14 +150,18 @@ describe('VaultPrivateKeyStore', () => {
         nodeId,
       );
 
-      expect(mockAxiosClient.post).toBeCalledTimes(1);
-      const postCallArgs = mockAxiosClient.post.mock.calls[0];
-      expect(postCallArgs[0]).toEqual(`/s-${sessionKeyIdHex}`);
-      expect(postCallArgs[1]).toHaveProperty(
-        'data.privateKey',
-        base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
-      );
-      expect(postCallArgs[1]).toHaveProperty('data.peerId', undefined);
+      expect(mockAxiosClient.post).toBeCalledTimes(2);
+      expect(mockAxiosClient.post).toHaveBeenCalledWith(`/s-${sessionKeyIdHex}`, {
+        data: {
+          nodeId,
+          privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
+        },
+      });
+      expect(mockAxiosClient.post).toHaveBeenCalledWith(`/s-node-${nodeId}`, {
+        data: {
+          privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
+        },
+      });
     });
 
     test('Bound session key should be stored', async () => {
@@ -168,13 +174,13 @@ describe('VaultPrivateKeyStore', () => {
       );
 
       expect(mockAxiosClient.post).toBeCalledTimes(1);
-      const postCallArgs = mockAxiosClient.post.mock.calls[0];
-      expect(postCallArgs[0]).toEqual(`/s-${sessionKeyIdHex}`);
-      expect(postCallArgs[1]).toHaveProperty(
-        'data.privateKey',
-        base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
-      );
-      expect(postCallArgs[1]).toHaveProperty('data.peerId', peerId);
+      expect(mockAxiosClient.post).toHaveBeenCalledWith(`/s-${sessionKeyIdHex}`, {
+        data: {
+          nodeId,
+          peerId,
+          privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
+        },
+      });
     });
 
     test('Axios errors should be wrapped', async () => {
@@ -267,9 +273,10 @@ describe('VaultPrivateKeyStore', () => {
       );
       const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
 
-      const privateKey = await store.retrieveUnboundSessionKey(
+      const privateKey = await store.retrieveSessionKey(
         sessionKeyPair.sessionKey.keyId,
         nodeId,
+        peerId,
       );
 
       expect(mockAxiosClient.get).toBeCalledTimes(1);
@@ -395,6 +402,55 @@ describe('VaultPrivateKeyStore', () => {
         KeyStoreError,
         `Failed to retrieve key: Vault returned a 204 response (${errorMessages.join(', ')})`,
       );
+    });
+
+    describe('retrieveLatestUnboundSessionKeySerialised', () => {
+      test('should return null if no key exists', async () => {
+        mockAxiosClient.get.mockResolvedValue({ status: 404 });
+        const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+        await expect(store.retrieveUnboundSessionPublicKey(nodeId)).resolves.toBeNull();
+      });
+
+      test('should return the key if one exists', async () => {
+        mockAxiosClient.get.mockResolvedValue(
+          makeVaultGETResponse(
+            {
+              privateKey: base64Encode(await derSerializePrivateKey(sessionKeyPair.privateKey)),
+            },
+            200,
+          ),
+        );
+        const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+        const publicKey = await store.retrieveUnboundSessionPublicKey(nodeId);
+
+        expect(mockAxiosClient.get).toHaveBeenCalledWith(`/s-node-${nodeId}`);
+        await expect(derSerializePublicKey(publicKey!)).resolves.toEqual(
+          await derSerializePublicKey(sessionKeyPair.sessionKey.publicKey),
+        );
+      });
+
+      test('Any status other than 200 or 404 should raise a KeyStoreError', async () => {
+        mockAxiosClient.get.mockResolvedValue({ status: 204, data: {} });
+        const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+        await expect(store.retrieveUnboundSessionPublicKey(nodeId)).rejects.toThrowWithMessage(
+          VaultStoreError,
+          'Vault returned a 204 response',
+        );
+      });
+
+      test('Error messages in 40X/50X responses should be included in error', async () => {
+        const errorMessages: ReadonlyArray<any> = ['foo', 'bar'];
+        mockAxiosClient.get.mockResolvedValue({ status: 204, data: { errors: errorMessages } });
+        const store = new VaultPrivateKeyStore(stubVaultUrl, stubVaultToken, stubKvPath);
+
+        await expect(store.retrieveUnboundSessionPublicKey(nodeId)).rejects.toThrowWithMessage(
+          VaultStoreError,
+          `Vault returned a 204 response (${errorMessages.join(', ')})`,
+        );
+      });
     });
 
     function makeVaultGETResponse(data: any, status: number): any {
