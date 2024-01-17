@@ -7,10 +7,14 @@ import { GcpSessionKey } from '../lib/gcp/models/GcpSessionKey';
 
 const MODEL_CLASSES: readonly (new () => any)[] = [GcpIdentityKey, GcpSessionKey];
 
+const MONGODB_VERSION = '6.0.3';
+
 export function setUpTestDBConnection(): () => Connection {
   let connectionURI: string;
   let connection: Connection;
-  const mongoServer = new MongoMemoryServer();
+  const mongoServer = new MongoMemoryServer({
+    binary: { version: MONGODB_VERSION },
+  });
   beforeAll(async () => {
     await mongoServer.start();
     connectionURI = mongoServer.getUri();
