@@ -4,6 +4,7 @@ import {
   derDeserializeRSAPrivateKey,
   derSerializePrivateKey,
   SessionPrivateKeyData,
+  UnboundSessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
 import axios, { AxiosInstance } from 'axios';
 import { Agent as HttpAgent } from 'http';
@@ -15,6 +16,8 @@ import {
   KeyDataEncoded,
   SessionKeyDataDecoded,
   SessionKeyDataEncoded,
+  UnboundSessionKeyDataDecoded,
+  UnboundSessionKeyDataEncoded,
 } from './keyData';
 import { VaultStoreError } from './VaultStoreError';
 import { CloudPrivateKeystore } from '../CloudPrivateKeystore';
@@ -101,11 +104,16 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
     }
   }
 
-  protected override async retrieveLatestUnboundSessionKeySerialised(
+  protected override async retrieveLatestUnboundSessionKeyData(
     nodeId: string,
-  ): Promise<Buffer | null> {
-    const data = await this.retrieveData(`s-node-${nodeId}`);
-    return data?.privateKey ?? null;
+  ): Promise<UnboundSessionPrivateKeyData | null> {
+    const data = (await this.retrieveData(
+      `s-node-${nodeId}`,
+    )) as UnboundSessionKeyDataDecoded | null;
+    if (!data) {
+      return null;
+    }
+    return { keyId: data.keyId, keySerialized: data.privateKey };
   }
 
   private async retrieveData(keyId: string): Promise<KeyDataDecoded | null> {
@@ -123,6 +131,7 @@ export class VaultPrivateKeyStore extends CloudPrivateKeystore {
 
     const vaultData = response.data.data.data as KeyDataEncoded;
     return {
+      keyId: (vaultData as UnboundSessionKeyDataEncoded).keyId,
       peerId: (vaultData as SessionKeyDataEncoded).peerId,
       nodeId: (vaultData as SessionKeyDataEncoded).nodeId,
       privateKey: base64Decode(vaultData.privateKey),

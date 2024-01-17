@@ -6,6 +6,7 @@ import {
   IdentityKeyPair,
   RSAKeyGenOptions,
   SessionPrivateKeyData,
+  UnboundSessionPrivateKeyData,
 } from '@relaycorp/relaynet-core';
 import { getModelForClass, ReturnModelType } from '@typegoose/typegoose';
 import { calculate as calculateCRC32C } from 'fast-crc32c';
@@ -128,20 +129,25 @@ export class GCPPrivateKeyStore extends CloudPrivateKeystore {
     return { keySerialized, peerId, nodeId };
   }
 
-  protected override async retrieveLatestUnboundSessionKeySerialised(
+  protected override async retrieveLatestUnboundSessionKeyData(
     nodeId: string,
-  ): Promise<Buffer | null> {
+  ): Promise<UnboundSessionPrivateKeyData | null> {
     const document = await this.sessionKeyModel
       .findOne(
         { nodeId, peerId: undefined },
-        { privateKeyCiphertext: 1 },
+        { privateKeyCiphertext: 1, keyId: 1 },
         { sort: { creationDate: -1 } },
       )
       .exec();
     if (!document) {
       return null;
     }
-    return this.decryptSessionPrivateKey(document.privateKeyCiphertext, nodeId);
+
+    const keySerialized = await this.decryptSessionPrivateKey(
+      document.privateKeyCiphertext,
+      nodeId,
+    );
+    return { keyId: document.keyId, keySerialized };
   }
 
   //region Identity key utilities

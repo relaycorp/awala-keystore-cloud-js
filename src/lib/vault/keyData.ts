@@ -9,7 +9,14 @@ export interface SessionKeyDataEncoded extends BaseKeyDataEncoded {
   readonly peerId?: string;
 }
 
-export type KeyDataEncoded = IdentityKeyDataEncoded | SessionKeyDataEncoded;
+export interface UnboundSessionKeyDataEncoded extends BaseKeyDataEncoded {
+  readonly keyId: string;
+}
+
+export type KeyDataEncoded =
+  | IdentityKeyDataEncoded
+  | SessionKeyDataEncoded
+  | UnboundSessionKeyDataEncoded;
 
 interface BaseKeyDataDecoded {
   readonly privateKey: Buffer;
@@ -22,9 +29,11 @@ export interface SessionKeyDataDecoded extends BaseKeyDataDecoded {
   readonly nodeId: string;
 }
 
-interface InitialSessionKeyDataDecoded extends BaseKeyDataDecoded {}
+export interface UnboundSessionKeyDataDecoded extends BaseKeyDataDecoded {
+  readonly keyId: string;
+}
 
 export type KeyDataDecoded =
   | IdentityKeyDataDecoded
   | SessionKeyDataDecoded
-  | InitialSessionKeyDataDecoded;
+  | UnboundSessionKeyDataDecoded;
