@@ -42,7 +42,7 @@
     "@relaycorp/relaynet-core": ">=1.88.1, < 2.0",
     "@typegoose/typegoose": "^12.4.0",
     "axios": "^1.6.8",
-    "env-var": "^7.4.1",
+    "env-var": "^7.4.2",
     "fast-crc32c": "^2.0.0",
     "mongoose": "^8.3.3",
     "webcrypto-core": "< 2.0"
