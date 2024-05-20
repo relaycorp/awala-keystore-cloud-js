@@ -40,7 +40,7 @@
   "dependencies": {
     "@google-cloud/kms": "^4.3.0",
     "@relaycorp/relaynet-core": ">=1.88.1, < 2.0",
-    "@typegoose/typegoose": "^12.4.0",
+    "@typegoose/typegoose": "^12.5.0",
     "axios": "^1.6.8",
     "env-var": "^7.4.2",
     "fast-crc32c": "^2.0.0",
