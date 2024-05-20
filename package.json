@@ -38,7 +38,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@google-cloud/kms": "^4.2.0",
+    "@google-cloud/kms": "^4.3.0",
     "@relaycorp/relaynet-core": ">=1.88.1, < 2.0",
     "@typegoose/typegoose": "^12.5.0",
     "axios": "^1.6.8",
