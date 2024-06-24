@@ -44,7 +44,7 @@
     "axios": "^1.6.8",
     "env-var": "^7.5.0",
     "fast-crc32c": "^2.0.0",
-    "mongoose": "^8.4.1",
+    "mongoose": "^8.4.3",
     "webcrypto-core": "< 2.0"
   },
   "peerDependencies": {
