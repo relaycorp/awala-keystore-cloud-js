@@ -10,6 +10,7 @@ jobs:
   release:
     needs: ci
     uses: relaycorp/shared-workflows/.github/workflows/nodejs-lib-release.yml@main
+    with:
+      jekyll_docs: true
     secrets:
       npm_token: ${{ secrets.NPM_TOKEN }}
-      jekyll_docs: true
