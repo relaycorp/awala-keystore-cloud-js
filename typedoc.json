@@ -2,5 +2,6 @@
   "exclude": ["**/*.spec.ts"],
   "excludePrivate": true,
   "excludeProtected": true,
-  "theme": "minimal"
+  "theme": "default",
+  "readme": "api.md"
 }
