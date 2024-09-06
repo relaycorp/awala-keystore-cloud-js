@@ -12,3 +12,4 @@ jobs:
     uses: relaycorp/shared-workflows/.github/workflows/nodejs-lib-release.yml@main
     secrets:
       npm_token: ${{ secrets.NPM_TOKEN }}
+      jekyll_docs: true
