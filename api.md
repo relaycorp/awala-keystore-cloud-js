@@ -1,7 +1,15 @@
----
-nav_order: 1
-permalink: /gcp
----
+# Overview
+
+`@relaycorp/awala-keystore-cloud` is a Node.js library that implements
+[Awala](https://awala.network/) private key stores across a range of cloud providers and open
+source backing services, so that server-side apps can be deployed to a wide variety of platforms.
+
+Most of this documentation is aimed at _operators_ of those server-side apps using this library.
+To get help, learn how to integrate this library or contribute to this library, please refer to the
+[GitHub project](https://github.com/relaycorp/awala-keystore-cloud-js).
+
+The following platforms are currently supported:
+
 # Google Cloud Platform (GCP)
 
 The GCP key store only uses [Cloud KMS](https://cloud.google.com/kms), which is serverless and fully managed by Google, so you don't need to worry about up/down scaling or uptime/performance monitoring. We protect sensitive cryptographic material with Cloud KMS as follows:
