@@ -41,7 +41,7 @@
     "@google-cloud/kms": "^4.5.0",
     "@relaycorp/relaynet-core": ">=1.88.1, < 2.0",
     "@typegoose/typegoose": "^12.13.0",
-    "axios": "^1.8.3",
+    "axios": "^1.8.4",
     "env-var": "^7.5.0",
     "fast-crc32c": "^2.0.0",
     "mongoose": "^8.8.4",
